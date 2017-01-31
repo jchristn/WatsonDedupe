@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.24720.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DedupeLibrary", "DedupeLibrary\DedupeLibrary.csproj", "{456CBA84-0BC2-453B-885F-92522272A139}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DedupeTest", "DedupeTest\DedupeTest.csproj", "{9659489F-080F-4F95-A295-53983896611F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DedupeCli", "DedupeCli\DedupeCli.csproj", "{4D0E0B89-B0BB-4F52-99DF-BBFFDD091550}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{456CBA84-0BC2-453B-885F-92522272A139}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{456CBA84-0BC2-453B-885F-92522272A139}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{456CBA84-0BC2-453B-885F-92522272A139}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{456CBA84-0BC2-453B-885F-92522272A139}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9659489F-080F-4F95-A295-53983896611F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9659489F-080F-4F95-A295-53983896611F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9659489F-080F-4F95-A295-53983896611F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9659489F-080F-4F95-A295-53983896611F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4D0E0B89-B0BB-4F52-99DF-BBFFDD091550}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D0E0B89-B0BB-4F52-99DF-BBFFDD091550}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D0E0B89-B0BB-4F52-99DF-BBFFDD091550}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D0E0B89-B0BB-4F52-99DF-BBFFDD091550}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
