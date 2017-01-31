@@ -5,7 +5,7 @@
 [nuget]:     https://www.nuget.org/packages/WatsonDedupe/
 [nuget-img]: https://badge.fury.io/nu/Object.svg
 
-Self-contained C# library for data deduplication in C# using Sqlite. 
+Self-contained C# library for data deduplication using Sqlite. 
 
 ## Help and Support
 Please contact me for any issues or enhancement requests!  I'm at joel at maraudersoftware dot com.  This is an early release and it works well, however, I need to spend more time on performance.  
@@ -120,8 +120,4 @@ static bool DeleteChunk(string key)
 ```
 
 ## Running under Mono
-Watson works well in Mono environments to the extent that we have tested it. It is recommended that when running under Mono, you execute the containing EXE using --server and after using the Mono Ahead-of-Time Compiler (AOT).  You may want to use the AOT on the CLI app as well.
-```
-mono --aot=nrgctx-trampolines=8096,nimt-trampolines=8096,ntrampolines=4048 --server myapp.exe
-mono --server myapp.exe
-```
+Due to some compatibility issues with Mono.Data.Sqlite, I reverted to System.Data.Sqlite.  It would be easy enough to convert back to use the Mono version, and if you fix the compatibility issue, please create a pull request.  As I have time, I will try to do this as well.
