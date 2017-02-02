@@ -66,7 +66,7 @@ static void Main(string[] args)
 	Dedupe.ListObjects(out Keys);
 
 	// Gather index and dedupe stats
-	if (Dedupe.IndexStats(out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent))
+	if (Dedupe.IndexStats(out NumChunks, out LogicalBytes, out PhysicalBytes, out DedupeRatioX, out DedupeRatioPercent))
 	{
 	    Console.WriteLine("Statistics:");
 	    Console.WriteLine("  Number of chunks  : " + NumChunks);
