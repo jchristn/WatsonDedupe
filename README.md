@@ -36,6 +36,9 @@ static string Key;
 static List<string> Keys;
 static byte[] Data;
 
+static bool DebugDedupe = false;
+static bool DebugSql = false;
+static int NumObjects;
 static int NumChunks;
 static long LogicalBytes;
 static long PhysicalBytes;
@@ -66,9 +69,10 @@ static void Main(string[] args)
 	Dedupe.ListObjects(out Keys);
 
 	// Gather index and dedupe stats
-	if (Dedupe.IndexStats(out NumChunks, out LogicalBytes, out PhysicalBytes, out DedupeRatioX, out DedupeRatioPercent))
+	if (Dedupe.IndexStats(out NumObjects, out NumChunks, out LogicalBytes, out PhysicalBytes, out DedupeRatioX, out DedupeRatioPercent))
 	{
 	    Console.WriteLine("Statistics:");
+	    Console.WriteLine("  Number of objects : " + NumObjects);
 	    Console.WriteLine("  Number of chunks  : " + NumChunks);
 	    Console.WriteLine("  Logical bytes     : " + LogicalBytes + " bytes");
 	    Console.WriteLine("  Physical bytes    : " + PhysicalBytes + " bytes");
