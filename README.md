@@ -26,79 +26,90 @@ A test project is included which will help you exercise the class library.
 A CLI project is also included which provides a binary that can be used to interact with the index for object storage, retrieval, removal, and statistics.  CLI examples are shown below.
 
 ## Library Example
-The library requires that you implement three functions within your app for managing chunk data, specifically, writing, reading, and deleting.  This was done to provide you with flexibility on where you store chunk data and how you manage it.
+The library requires that you implement three functions within your app for managing chunk data, specifically, writing, reading, and deleting.  This was done to provide you with flexibility on where you store chunk data and how you manage it.  
+
+Be sure to create the directory 'Chunks' prior to execution, and include a text file named 'kjv.txt' in the output directory (you can use the 'bible.txt' file from the SampleData folder for this purpose, but rename it).
 ```
+using System;
+using System.Collections.Generic;
+using System.IO;
 using WatsonDedupe;
 
-static DedupeLibrary Dedupe;
-static List<Chunk> Chunks;
-static string Key;
-static List<string> Keys;
-static byte[] Data;
-
-static bool DebugDedupe = false;
-static bool DebugSql = false;
-static int NumObjects;
-static int NumChunks;
-static long LogicalBytes;
-static long PhysicalBytes;
-static decimal DedupeRatioX;
-static decimal DedupeRatioPercent;
-
-static void Main(string[] args)
+namespace WatsonDedupeSampleApp
 {
-	// Initialize existing index from file
-	Dedupe = new DedupeLibrary("Test.idx", WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+    class Program
+    {
+        static DedupeLibrary Dedupe;
+        static List<Chunk> Chunks;
+        static string Key = "kjv";
+        static List<string> Keys;
+        static byte[] Data;
 
-	// Or, create a new index
-	Dedupe = new DedupeLibrary("Test.idx", 1024, 32768, 64, 2, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+        static bool DebugDedupe = false;
+        static bool DebugSql = false;
+        static int NumObjects;
+        static int NumChunks;
+        static long LogicalBytes;
+        static long PhysicalBytes;
+        static decimal DedupeRatioX;
+        static decimal DedupeRatioPercent;
 
-	// Store an object in the index
-	if (Dedupe.StoreObject(Key, Data, out Chunks)) Console.WriteLine("Success");
+        static void Main(string[] args)
+        {
+            // Create a new index
+            Dedupe = new DedupeLibrary("Test.idx", 1024, 32768, 64, 2, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
 
-	// Retrieve an object from the index
-	if (Dedupe.RetrieveObject(Key, out Data)) Console.WriteLine("Success");
+            // Load an existing index
+            // Dedupe = new DedupeLibrary("Test.idx", WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
 
-	// Delete an object from the index
-	if (Dedupe.DeleteObject(Key)) Console.WriteLine("Success");
+            // Store an object in the index
+            if (Dedupe.StoreObject(Key, File.ReadAllBytes("kjv.txt"), out Chunks)) Console.WriteLine("Success");
 
-	// Check if object exists in the index
-	if (Dedupe.ObjectExists(Key)) Console.WriteLine("Exists");
+            // Retrieve an object from the index
+            if (Dedupe.RetrieveObject(Key, out Data)) Console.WriteLine("Success");
 
-	// List all objects
-	Dedupe.ListObjects(out Keys);
+            // Check if object exists in the index
+            if (Dedupe.ObjectExists(Key)) Console.WriteLine("Exists");
 
-	// Gather index and dedupe stats
-	if (Dedupe.IndexStats(out NumObjects, out NumChunks, out LogicalBytes, out PhysicalBytes, out DedupeRatioX, out DedupeRatioPercent))
-	{
-	    Console.WriteLine("Statistics:");
-	    Console.WriteLine("  Number of objects : " + NumObjects);
-	    Console.WriteLine("  Number of chunks  : " + NumChunks);
-	    Console.WriteLine("  Logical bytes     : " + LogicalBytes + " bytes");
-	    Console.WriteLine("  Physical bytes    : " + PhysicalBytes + " bytes");
-	    Console.WriteLine("  Dedupe ratio      : " + DedupeRatioX + "X, " + DedupeRatioPercent + "%");
-	    Console.WriteLine("");
-	}
-}
+            // List all objects
+            Dedupe.ListObjects(out Keys);
 
-// Called during store operations, consider using FileStream with FileOptions.WriteThrough to ensure crash consistency
-static bool WriteChunk(Chunk data)
-{
-	File.WriteAllBytes("Chunks\\" + data.Key, data.Value);
-    return true;
-}
+            // Gather index and dedupe stats
+            if (Dedupe.IndexStats(out NumObjects, out NumChunks, out LogicalBytes, out PhysicalBytes, out DedupeRatioX, out DedupeRatioPercent))
+            {
+                Console.WriteLine("Statistics:");
+                Console.WriteLine("  Number of objects : " + NumObjects);
+                Console.WriteLine("  Number of chunks  : " + NumChunks);
+                Console.WriteLine("  Logical bytes     : " + LogicalBytes + " bytes");
+                Console.WriteLine("  Physical bytes    : " + PhysicalBytes + " bytes");
+                Console.WriteLine("  Dedupe ratio      : " + DedupeRatioX + "X, " + DedupeRatioPercent + "%");
+                Console.WriteLine("");
+            }
 
-// Called during read operations
-static byte[] ReadChunk(string key)
-{
-    return File.ReadAllBytes("Chunks\\" + key);
-}
+            // Delete an object from the index
+            if (Dedupe.DeleteObject(Key)) Console.WriteLine("Success");
+        }
 
-// Called during delete operations
-static bool DeleteChunk(string key)
-{
-	File.Delete("Chunks\\" + key);
-    return true;
+        // Called during store operations, consider using FileStream with FileOptions.WriteThrough to ensure crash consistency
+        static bool WriteChunk(Chunk data)
+        {
+            File.WriteAllBytes("Chunks\\" + data.Key, data.Value);
+            return true;
+        }
+
+        // Called during read operations
+        static byte[] ReadChunk(string key)
+        {
+            return File.ReadAllBytes("Chunks\\" + key);
+        }
+
+        // Called during delete operations
+        static bool DeleteChunk(string key)
+        {
+            File.Delete("Chunks\\" + key);
+            return true;
+        }
+    }
 }
 ```
 
