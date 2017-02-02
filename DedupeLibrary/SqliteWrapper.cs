@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Data.SQLite;
+using Mono.Data.Sqlite;
 
 namespace WatsonDedupe
 {
@@ -19,7 +19,7 @@ namespace WatsonDedupe
 
         private string IndexFile;
         private string ConnStr;
-        private SQLiteConnection Conn;
+        private SqliteConnection Conn;
         private bool Debug;
 
         private readonly object ConfigLock;
@@ -73,9 +73,9 @@ namespace WatsonDedupe
             {
                 if (String.IsNullOrEmpty(query)) return false;
 
-                using (SQLiteCommand cmd = new SQLiteCommand(query, Conn))
+                using (SqliteCommand cmd = new SqliteCommand(query, Conn))
                 {
-                    using (SQLiteDataReader rdr = cmd.ExecuteReader())
+                    using (SqliteDataReader rdr = cmd.ExecuteReader())
                     {
                         result.Load(rdr);
                         return true;
@@ -514,19 +514,19 @@ namespace WatsonDedupe
         {
             if (!File.Exists(filename))
             {
-                SQLiteConnection.CreateFile(filename);
+                SqliteConnection.CreateFile(filename);
             }
         }
 
         private void Connect()
         {
-            Conn = new SQLiteConnection(ConnStr);
+            Conn = new SqliteConnection(ConnStr);
             Conn.Open();
         }
 
         private void CreateConfigTable()
         {
-            using (SQLiteCommand cmd = Conn.CreateCommand())
+            using (SqliteCommand cmd = Conn.CreateCommand())
             {
                 cmd.CommandText =
                     @"CREATE TABLE IF NOT EXISTS dedupe_config " +
@@ -540,7 +540,7 @@ namespace WatsonDedupe
         
         private void CreateObjectMapTable()
         {
-            using (SQLiteCommand cmd = Conn.CreateCommand())
+            using (SqliteCommand cmd = Conn.CreateCommand())
             {
                 cmd.CommandText =
                     @"CREATE TABLE IF NOT EXISTS object_map " +
@@ -559,7 +559,7 @@ namespace WatsonDedupe
 
         private void CreateChunkRefcountTable()
         {
-            using (SQLiteCommand cmd = Conn.CreateCommand())
+            using (SqliteCommand cmd = Conn.CreateCommand())
             {
                 cmd.CommandText =
                     @"CREATE TABLE IF NOT EXISTS chunk_refcount " +
