@@ -119,5 +119,25 @@ static bool DeleteChunk(string key)
 > dedupecli test.idx stats
 ```
 
+## Index Settings
+Four parameters are used when creating the index: minimum chunk size, maximum chunk size, shift count, and boundary check bytes.  They are defined as follows:
+
+- Minimum chunk size: the smallest amount of data that can be considered a chunk of data
+- Maximum chunk size: the largest amount of data that can be considered a chunk of data
+- Shift count: the number of bytes to move the sliding window while evaluating data in the window for a chunk boundary
+- Boundary check bytes: the number of bytes in the MD5 hash of the data in the sliding window that is evaluated to identify a chunk boundary
+
+The index parameters should be set in such a way to balance performance vs the frequency with which duplicate data is identified.  Generally speaking, the smaller the values for these, the more likely the library will be in finding repeated data patterns, and, the larger the values for these, the less likely the library will be in finding repeated data patterns.
+
+Similarly, the smaller the value for these, the slower the library will perform, and the larger the value for these, the faster the library will perform.  Smaller values for these settings requires that more data be evaluated (via MD5) and more records be inserted into Sqlite.  Larger values for these settings requires less data analysis and fewer records inserted into Sqlite.
+
+In some cases, it is assumed that duplicate data will not be found within a file and that the library should only be used to identify large chunks of redundant data across large objects (for instance, copies of files with minor changes).  In such cases, use large values for the index settings.
+
+In other cases, where it is assumed that duplicate data will be found within a file and across files, smaller values can be used.
+
+Recommended settings for most environments (min, max, shift, boundary):
+- For small file environments, use 256, 4096, 16, and 2
+- For large file environments, use 8192, 65536, 512, and 3
+
 ## Running under Mono
-Due to some compatibility issues with Mono.Data.Sqlite, I reverted to System.Data.Sqlite.  It would be easy enough to convert back to use the Mono version, and if you fix the compatibility issue, please create a pull request.  As I have time, I will try to do this as well.
+This library uses Mono.Data.Sqlite which requires sqlite3.dll.  sqlite3.dll has been manually added to each project with its copy setting set to "always copy".  You may want to use the Mono AOT (ahead of time) compiler prior to using any binary that includes this library on Mono.
