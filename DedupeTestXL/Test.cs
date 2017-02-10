@@ -11,21 +11,22 @@ namespace DedupeTestXL
     class Test
     {
         static DedupeLibraryXL Dedupe;
-        static bool DebugDedupe = false;
-        static bool DebugSql = false;
+        static bool DebugDedupe = true;
+        static bool DebugSql = true;
 
         static void Main(string[] args)
         {
             bool runForever = true;
             string userInput = "";
             string filename = "";
-            string objectIndex = "";
+            string containerName = "";
+            string containerIndexFile = "";
             string key = "";
             byte[] data;
             List<Chunk> chunks;
             List<string> keys;
 
-            int numObjects;
+            int numContainers;
             int numChunks;
             long logicalBytes;
             long physicalBytes;
@@ -46,11 +47,13 @@ namespace DedupeTestXL
                         Console.WriteLine("Available commands:");
                         Console.WriteLine("  q          quit");
                         Console.WriteLine("  cls        clear the screen");
-                        Console.WriteLine("  store      store an object");
-                        Console.WriteLine("  retrieve   retrieve an object");
-                        Console.WriteLine("  delete     delete an object");
-                        Console.WriteLine("  list       list objects in the index");
-                        Console.WriteLine("  exists     check if object exists in the index");
+                        Console.WriteLine("  store      store an object in a container");
+                        Console.WriteLine("  retrieve   retrieve an object from a container");
+                        Console.WriteLine("  delete     delete an object in a container");
+                        Console.WriteLine("  clist      list containers in the index");
+                        Console.WriteLine("  olist      list objects in a container");
+                        Console.WriteLine("  cexists    check if container exists in the index");
+                        Console.WriteLine("  oexists    check if object exists in a container");
                         Console.WriteLine("  stats      list index stats");
                         Console.WriteLine("");
                         break;
@@ -66,10 +69,11 @@ namespace DedupeTestXL
 
                     case "store":
                         filename = Common.InputString("Input filename:", null, false);
-                        objectIndex = Common.InputString("Object index:", null, false);
+                        containerName = Common.InputString("Container name:", null, false);
+                        containerIndexFile = Common.InputString("Container index file:", null, false);
                         key = Common.InputString("Object key:", null, false);
                         data = File.ReadAllBytes(filename);
-                        if (Dedupe.StoreObject(key, objectIndex, data, out chunks))
+                        if (Dedupe.StoreObject(key, containerName, containerIndexFile, data, out chunks))
                         {
                             if (chunks != null && chunks.Count > 0)
                             {
@@ -89,9 +93,10 @@ namespace DedupeTestXL
 
                     case "retrieve":
                         key = Common.InputString("Object key:", null, false);
-                        objectIndex = Common.InputString("Object index:", null, false);
+                        containerName = Common.InputString("Container name:", null, false);
+                        containerIndexFile = Common.InputString("Container index file:", null, false);
                         filename = Common.InputString("Output filename:", null, false);
-                        if (Dedupe.RetrieveObject(key, objectIndex, out data))
+                        if (Dedupe.RetrieveObject(key, containerName, containerIndexFile, out data))
                         {
                             if (data != null && data.Length > 0)
                             {
@@ -112,8 +117,9 @@ namespace DedupeTestXL
 
                     case "delete":
                         key = Common.InputString("Object key:", null, false);
-                        objectIndex = Common.InputString("Object index:", null, false);
-                        if (Dedupe.DeleteObject(key, objectIndex))
+                        containerName = Common.InputString("Container name:", null, false);
+                        containerIndexFile = Common.InputString("Container index file:", null, false);
+                        if (Dedupe.DeleteObject(key, containerName, containerIndexFile))
                         {
                             Console.WriteLine("Success");
                         }
@@ -123,19 +129,53 @@ namespace DedupeTestXL
                         }
                         break;
 
-                    case "list":
-                        Dedupe.ListObjects(out keys);
+                    case "clist":
+                        Dedupe.ListContainers(out keys);
+                        if (keys != null && keys.Count > 0)
+                        {
+                            Console.WriteLine("Containers: ");
+                            foreach (string curr in keys) Console.WriteLine("  " + curr);
+                            Console.WriteLine(keys.Count + " containers listed");
+                        }
+                        else
+                        {
+                            Console.WriteLine("None");
+                        }
+                        break;
+
+                    case "olist":
+                        containerName = Common.InputString("Container name:", null, false);
+                        containerIndexFile = Common.InputString("Container index file:", null, false);
+                        Dedupe.ListObjects(containerName, containerIndexFile, out keys);
                         if (keys != null && keys.Count > 0)
                         {
                             Console.WriteLine("Objects: ");
                             foreach (string curr in keys) Console.WriteLine("  " + curr);
                             Console.WriteLine(keys.Count + " objects listed");
                         }
+                        else
+                        {
+                            Console.WriteLine("None");
+                        }
                         break;
 
-                    case "exists":
+                    case "cexists":
                         key = Common.InputString("Object name:", null, false);
-                        if (Dedupe.ObjectExists(key))
+                        if (Dedupe.ContainerExists(key))
+                        {
+                            Console.WriteLine("Container exists");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Container does not exist");
+                        }
+                        break;
+
+                    case "oexists":
+                        key = Common.InputString("Object name:", null, false);
+                        containerName = Common.InputString("Container name:", null, false);
+                        containerIndexFile = Common.InputString("Container index file:", null, false);
+                        if (Dedupe.ObjectExists(key, containerName, containerIndexFile))
                         {
                             Console.WriteLine("Object exists");
                         }
@@ -146,14 +186,14 @@ namespace DedupeTestXL
                         break;
 
                     case "stats":
-                        if (Dedupe.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent))
+                        if (Dedupe.IndexStats(out numContainers, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent))
                         {
                             Console.WriteLine("Statistics:");
-                            Console.WriteLine("  Number of objects : " + numObjects);
-                            Console.WriteLine("  Number of chunks  : " + numChunks);
-                            Console.WriteLine("  Logical bytes     : " + logicalBytes + " bytes");
-                            Console.WriteLine("  Physical bytes    : " + physicalBytes + " bytes");
-                            Console.WriteLine("  Dedupe ratio      : " + Common.DecimalToString(dedupeRatioX) + "X, " + Common.DecimalToString(dedupeRatioPercent) + "%");
+                            Console.WriteLine("  Number of containers : " + numContainers);
+                            Console.WriteLine("  Number of chunks     : " + numChunks);
+                            Console.WriteLine("  Logical bytes        : " + logicalBytes + " bytes");
+                            Console.WriteLine("  Physical bytes       : " + physicalBytes + " bytes");
+                            Console.WriteLine("  Dedupe ratio         : " + Common.DecimalToString(dedupeRatioX) + "X, " + Common.DecimalToString(dedupeRatioPercent) + "%");
                             Console.WriteLine("");
                         }
                         else

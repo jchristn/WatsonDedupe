@@ -11,7 +11,7 @@ using WatsonDedupe;
 
 namespace DedupeCli
 {
-    class Program
+    class Cli
     {
         static string Command;
         static string IndexFile;

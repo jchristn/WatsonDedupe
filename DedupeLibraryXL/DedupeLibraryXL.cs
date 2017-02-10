@@ -135,24 +135,26 @@ namespace WatsonDedupe
         #region Public-Methods
 
         /// <summary>
-        /// Store an object in the deduplication index.
+        /// Store an object within a container in the deduplication index.
         /// </summary>
-        /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
-        /// <param name="objectIndexFile">The path to the index file for the object.</param>
+        /// <param name="objectName">The name of the object.  Must be unique in the container.</param>
+        /// <param name="containerName">The name of the container.  Must be unique in the index.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
         /// <param name="data">The byte data for the object.</param>
         /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
         /// <returns>Boolean indicating success or failure.</returns>
-        public bool StoreObject(string objectName, string objectIndexFile, byte[] data, out List<Chunk> chunks)
+        public bool StoreObject(string objectName, string containerName, string containerIndexFile, byte[] data, out List<Chunk> chunks)
         {
             #region Initialize
 
             chunks = new List<Chunk>();
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
+            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
+            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
             if (data == null || data.Length < 1) return false;
             objectName = Common.SanitizeString(objectName);
             
-            if (PoolSql.ObjectExists(objectName))
+            if (PoolSql.ObjectExists(objectName, containerName, containerIndexFile))
             {
                 if (DebugDedupe) Console.WriteLine("Object already exists");
                 return false;
@@ -178,7 +180,7 @@ namespace WatsonDedupe
 
             #region Add-Object-Map
             
-            if (!PoolSql.AddObjectChunks(objectName, objectIndexFile, data.Length, chunks))
+            if (!PoolSql.AddObjectChunks(objectName, containerName, containerIndexFile, data.Length, chunks))
             {
                 if (DebugDedupe) Console.WriteLine("Unable to add object");
                 return false;
@@ -198,7 +200,7 @@ namespace WatsonDedupe
             if (!storageSuccess)
             {
                 List<string> garbageCollectKeys;
-                PoolSql.DeleteObjectChunks(objectName, objectIndexFile, out garbageCollectKeys);
+                PoolSql.DeleteObjectChunks(objectName, containerName, containerIndexFile, out garbageCollectKeys);
 
                 if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
                 {
@@ -219,23 +221,25 @@ namespace WatsonDedupe
         }
 
         /// <summary>
-        /// Retrieve an object from the deduplication index.
+        /// Retrieve an object from a container.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
-        /// <param name="objectIndexFile">The path to the index file for the object.</param>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
         /// <param name="data">The byte data from the object.</param>
         /// <returns>Boolean indicating success or failure.</returns>
-        public bool RetrieveObject(string objectName, string objectIndexFile, out byte[] data)
+        public bool RetrieveObject(string objectName, string containerName, string containerIndexFile, out byte[] data)
         {
             data = null;
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
-            if (!File.Exists(objectIndexFile)) throw new FileNotFoundException();
+            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
+            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+            if (!File.Exists(containerIndexFile)) throw new FileNotFoundException();
             objectName = Common.SanitizeString(objectName);
 
             List<Chunk> chunks = new List<Chunk>();
 
-            if (!PoolSql.GetObjectChunks(objectName, objectIndexFile, out chunks))
+            if (!PoolSql.GetObjectChunks(objectName, containerName, containerIndexFile, out chunks))
             {
                 if (DebugDedupe) Console.WriteLine("Unable to retrieve object chunks");
                 return false;
@@ -274,16 +278,18 @@ namespace WatsonDedupe
         /// Delete an object stored in the deduplication index.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
-        /// <param name="objectIndexFile">The path to the index file for the object.</param>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
         /// <returns>Boolean indicating success or failure.</returns>
-        public bool DeleteObject(string objectName, string objectIndexFile)
+        public bool DeleteObject(string objectName, string containerName, string containerIndexFile)
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
+            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
+            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
             objectName = Common.SanitizeString(objectName);
 
             List<string> garbageCollectChunks = null;
-            PoolSql.DeleteObjectChunks(objectName, objectIndexFile, out garbageCollectChunks);
+            PoolSql.DeleteObjectChunks(objectName, containerName, containerIndexFile, out garbageCollectChunks);
 
             if (garbageCollectChunks != null && garbageCollectChunks.Count > 0)
             {
@@ -300,38 +306,84 @@ namespace WatsonDedupe
         }
 
         /// <summary>
-        /// List the objects stored in the deduplication index.
+        /// List the containers stored in the deduplication index.
         /// </summary>
-        /// <param name="keys">List of object names.</param>
-        public void ListObjects(out List<string> keys)
+        /// <param name="keys">List of container names.</param>
+        public void ListContainers(out List<string> keys)
         {
-            PoolSql.ListObjects(out keys);
+            PoolSql.ListContainers(out keys);
             return;
         }
 
         /// <summary>
-        /// Determine if an object exists in the index.
+        /// List the objects stored in a container.
+        /// </summary>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        /// <param name="keys">List of object names.</param>
+        public void ListObjects(string containerName, string containerIndexFile, out List<string> keys)
+        {
+            PoolSql.ListObjects(containerName, containerIndexFile, out keys);
+            return;
+        }
+
+        /// <summary>
+        /// Determine if a container exists in the index.
+        /// </summary>
+        /// <param name="containerName">The name of the container.</param>
+        /// <returns>Boolean indicating if the container exists.</returns>
+        public bool ContainerExists(string containerName)
+        {
+            return PoolSql.ContainerExists(containerName);
+        }
+
+        /// <summary>
+        /// Determine if an object exists in a container.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
         /// <returns>Boolean indicating if the object exists.</returns>
-        public bool ObjectExists(string objectName)
+        public bool ObjectExists(string objectName, string containerName, string containerIndexFile)
         {
-            return PoolSql.ObjectExists(objectName);
+            return PoolSql.ObjectExists(containerName, containerName, containerIndexFile);
         }
 
         /// <summary>
         /// Retrieve deduplication index statistics.
         /// </summary>
-        /// <param name="numObjects">The number of objects stored in the index.</param>
+        /// <param name="numContainers">The number of containers stored in the index.</param>
         /// <param name="numChunks">Number of chunks referenced in the index.</param>
         /// <param name="logicalBytes">The amount of data stored in the index, i.e. the full size of the original data.</param>
         /// <param name="physicalBytes">The number of bytes consumed by chunks of data, i.e. the deduplication set size.</param>
         /// <param name="dedupeRatioX">Deduplication ratio represented as a multiplier.</param>
         /// <param name="dedupeRatioPercent">Deduplication ratio represented as a percentage.</param>
         /// <returns>Boolean indicating success or failure.</returns>
-        public bool IndexStats(out int numObjects, out int numChunks, out long logicalBytes, out long physicalBytes, out decimal dedupeRatioX, out decimal dedupeRatioPercent)
+        public bool IndexStats(out int numContainers, out int numChunks, out long logicalBytes, out long physicalBytes, out decimal dedupeRatioX, out decimal dedupeRatioPercent)
         {
-            return PoolSql.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent);
+            return PoolSql.IndexStats(out numContainers, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent);
+        }
+
+        /// <summary>
+        /// Copies the pool index database to another file.
+        /// </summary>
+        /// <param name="destination">The destination file.</param>
+        /// <returns>Boolean indicating success.</returns>
+        public bool BackupPoolIndex(string destination)
+        {
+            return PoolSql.BackupPoolIndex(destination);
+        }
+
+        /// <summary>
+        /// Copies a container index database to another file.
+        /// </summary>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        /// <param name="destination">The destination file.</param>
+        /// <param name="incrementRefCount">Indicate if chunk reference counts should be incremented after copy.</param>
+        /// <returns>Boolean indicating success.</returns>
+        public bool BackupContainerIndex(string containerIndexFile, string destination, bool incrementRefCount)
+        {
+            return PoolSql.BackupContainerIndex(containerIndexFile, destination, incrementRefCount);
         }
 
         #endregion

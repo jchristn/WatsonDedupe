@@ -20,10 +20,10 @@ The Watson Dedupe library will take an incoming byte array (which you give an ob
 
 ## Two Libraries
 Two libraries are included:
-- DedupeLibrary - useful for smaller objects.  A single database is used, which also includes the map of chunks to positions within the source objects.  Use this library when the number of chunks stored is small.
-- DedupeLibraryXL - useful for larger objects or larger chunk sets.  A single database is used, which maps stored objects to a separate index for each object that contains the map of chunks to positions.  Use this library when the number of objects is small and the number of chunks is large.
+- DedupeLibrary - one single repository (database) useful for smaller objects and chunk counts where the number of database rows will not impede performance.  Use this library for small deployments with few objects and few chunks.
+- DedupeLibraryXL - one master database referencing one or more container databases.  Useful for larger objects or larger chunk sets where the row count would otherwise impede performance.  Use this libray for larger deployments.
 
-The examples below are for DedupeLibrary.  The method signatures for DedupeLibraryXL are very similar, but the store, retrieve, and delete methods require the filename and path as a parameter, whereas these are not required in DedupeLibrary.
+The examples below are for DedupeLibrary.  The method signatures for DedupeLibraryXL are very similar, but the store, retrieve, and delete methods require the container name, container index filename as parameters, whereas these are not required in DedupeLibrary.  DedupeLibraryXL will automatically create containers when objects are stored, and remove the containers (and container file) when they are empty.
 
 ## Test App 
 Test projects are included for both DedupeLibrary and DedupeLibraryXL which will help you exercise either of the class libraries.

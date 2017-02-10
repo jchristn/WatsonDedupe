@@ -327,6 +327,16 @@ namespace WatsonDedupe
             return Sql.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent);
         }
 
+        /// <summary>
+        /// Copies the index database to another file.
+        /// </summary>
+        /// <param name="destination">The destination file.</param>
+        /// <returns>Boolean indicating success.</returns>
+        public bool BackupIndex(string destination)
+        {
+            return Sql.BackupIndex(destination);
+        }
+
         #endregion
 
         #region Private-Methods

@@ -506,6 +506,36 @@ namespace WatsonDedupe
             return true;
         }
 
+        /// <summary>
+        /// Copies the index database to another file.
+        /// </summary>
+        /// <param name="destination">The destination file.</param>
+        /// <returns>Boolean indicating success.</returns>
+        public bool BackupIndex(string destination)
+        {
+            bool copySuccess = false;
+            using (SqliteCommand cmd = new SqliteCommand("BEGIN IMMEDIATE;", Conn))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            try
+            {
+                File.Copy(IndexFile, destination, true);
+                copySuccess = true;
+            }
+            catch (Exception)
+            {
+            }
+
+            using (SqliteCommand cmd = new SqliteCommand("ROLLBACK;", Conn))
+            {
+                cmd.ExecuteNonQuery();
+            }
+
+            return copySuccess;
+        }
+
         #endregion
 
         #region Private-Methods
@@ -531,7 +561,7 @@ namespace WatsonDedupe
                 cmd.CommandText =
                     @"CREATE TABLE IF NOT EXISTS dedupe_config " +
                     "(" +
-                    " key VARCHAR(64), " +
+                    " key VARCHAR(128), " +
                     " val VARCHAR(1024) " +
                     ")";
                 cmd.ExecuteNonQuery();
@@ -546,9 +576,9 @@ namespace WatsonDedupe
                     @"CREATE TABLE IF NOT EXISTS object_map " +
                     "(" +
                     " object_map_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    " object_name VARCHAR(64), " +
+                    " object_name VARCHAR(1024), " +
                     " object_len INTEGER, " +
-                    " chunk_key VARCHAR(64), " +
+                    " chunk_key VARCHAR(128), " +
                     " chunk_len INTEGER, " +
                     " chunk_position INTEGER, " +
                     " chunk_address INTEGER " +
@@ -565,7 +595,7 @@ namespace WatsonDedupe
                     @"CREATE TABLE IF NOT EXISTS chunk_refcount " +
                     "(" +
                     " chunk_refcount_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    " chunk_key VARCHAR(64), " +
+                    " chunk_key VARCHAR(128), " +
                     " chunk_len INTEGER, " +
                     " ref_count INTEGER" +
                     ")";
