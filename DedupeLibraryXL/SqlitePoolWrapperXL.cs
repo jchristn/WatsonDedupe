@@ -9,7 +9,7 @@ using Mono.Data.Sqlite;
 
 namespace WatsonDedupe
 {
-    public class SqliteWrapper
+    public class SqlitePoolWrapperXL
     {
         #region Public-Members
 
@@ -24,7 +24,6 @@ namespace WatsonDedupe
 
         private readonly object ConfigLock;
         private readonly object ChunkRefcountLock;
-        private readonly object ObjectLock;
 
         #endregion
 
@@ -35,7 +34,7 @@ namespace WatsonDedupe
         /// </summary>
         /// <param name="indexFile">The index database file.</param>
         /// <param name="debug">Enable or disable console logging.</param>
-        public SqliteWrapper(string indexFile, bool debug)
+        public SqlitePoolWrapperXL(string indexFile, bool debug)
         {
             if (String.IsNullOrEmpty(indexFile)) throw new ArgumentNullException(nameof(indexFile));
 
@@ -44,15 +43,14 @@ namespace WatsonDedupe
             ConnStr = "Data Source=" + IndexFile + ";Version=3;";
 
             CreateFile(IndexFile);
-            Connect();
-            CreateConfigTable();
-            CreateObjectMapTable();
-            CreateChunkRefcountTable();
+            ConnectPoolIndex();
+            CreatePoolIndexConfigTable();
+            CreatePoolIndexObjectFileMapTable();
+            CreatePoolIndexChunkRefcountTable();
             Debug = debug;
 
             ConfigLock = new object();
             ChunkRefcountLock = new object();
-            ObjectLock = new object();
         }
 
         #endregion
@@ -60,15 +58,15 @@ namespace WatsonDedupe
         #region Public-Methods
 
         /// <summary>
-        /// Execute a SQL query.
+        /// Execute a SQL query against the pool index.
         /// </summary>
         /// <param name="query">The query.</param>
         /// <param name="result">DataTable containing results.</param>
         /// <returns>Boolean indicating success or failure.</returns>
-        public bool Query(string query, out DataTable result)
+        public bool QueryPoolIndex(string query, out DataTable result)
         {
             result = new DataTable();
-            
+
             try
             {
                 if (String.IsNullOrEmpty(query)) return false;
@@ -92,7 +90,52 @@ namespace WatsonDedupe
                 {
                     if (result != null)
                     {
-                        Console.WriteLine(result.Rows.Count + " rows, query: " + query);
+                        Console.WriteLine(result.Rows.Count + " rows [pool], query: " + query);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Execute a SQL query against the object index.
+        /// </summary>
+        /// <param name="query">The query.</param>
+        /// <param name="objectIndexFile">The path to the index file for the object.</param>
+        /// <param name="result">DataTable containing results.</param>
+        /// <returns>Boolean indicating success or failure.</returns>
+        public bool QueryObjectIndex(string query, string objectIndexFile, out DataTable result)
+        {
+            result = new DataTable();
+            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
+
+            string connStr = "Data Source=" + objectIndexFile + ";Version=3;";
+            SqliteConnection conn = new SqliteConnection(connStr);
+            conn.Open();
+
+            try
+            {
+                if (String.IsNullOrEmpty(query)) return false;
+
+                using (SqliteCommand cmd = new SqliteCommand(query, conn))
+                {
+                    using (SqliteDataReader rdr = cmd.ExecuteReader())
+                    {
+                        result.Load(rdr);
+                        return true;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                if (Debug)
+                {
+                    if (result != null)
+                    {
+                        Console.WriteLine(result.Rows.Count + " rows [object], query: " + query);
                     }
                 }
             }
@@ -119,12 +162,12 @@ namespace WatsonDedupe
 
             lock (ConfigLock)
             {
-                if (Query(keyCheckQuery, out keyCheckResult))
+                if (QueryPoolIndex(keyCheckQuery, out keyCheckResult))
                 {
-                    Query(keyDeleteQuery, out keyDeleteResult);
+                    QueryPoolIndex(keyDeleteQuery, out keyDeleteResult);
                 }
 
-                Query(keyInsertQuery, out keyInsertResult);
+                QueryPoolIndex(keyInsertQuery, out keyInsertResult);
             }
 
             return;
@@ -146,7 +189,7 @@ namespace WatsonDedupe
 
             lock (ConfigLock)
             {
-                if (Query(keyQuery, out result))
+                if (QueryPoolIndex(keyQuery, out result))
                 {
                     if (result != null && result.Rows.Count > 0)
                     {
@@ -172,17 +215,14 @@ namespace WatsonDedupe
         {
             if (String.IsNullOrEmpty(objectName)) return false;
 
-            string query = "SELECT * FROM object_map WHERE object_name = '" + objectName + "' LIMIT 1";
+            string query = "SELECT * FROM object_file_map WHERE object_name = '" + objectName + "' LIMIT 1";
             DataTable result;
             
-            lock (ObjectLock)
+            if (QueryPoolIndex(query, out result))
             {
-                if (Query(query, out result))
-                {
-                    if (result != null && result.Rows.Count > 0) return true;
-                }
+                if (result != null && result.Rows.Count > 0) return true;
             }
-
+            
             return false;
         }
         
@@ -194,19 +234,16 @@ namespace WatsonDedupe
         {
             keys = new List<string>();
 
-            string query = "SELECT DISTINCT object_name FROM object_map";
+            string query = "SELECT DISTINCT object_name FROM object_file_map";
             DataTable result;
-
-            lock (ObjectLock)
+            
+            if (QueryPoolIndex(query, out result))
             {
-                if (Query(query, out result))
+                if (result != null && result.Rows.Count > 0)
                 {
-                    if (result != null && result.Rows.Count > 0)
+                    foreach (DataRow curr in result.Rows)
                     {
-                        foreach (DataRow curr in result.Rows)
-                        {
-                            keys.Add(curr["object_name"].ToString());
-                        }
+                        keys.Add(curr["object_name"].ToString());
                     }
                 }
             }
@@ -215,40 +252,56 @@ namespace WatsonDedupe
         /// <summary>
         /// Add chunks from an object to the index.
         /// </summary>
-        /// <param name="objectName">The name of the object.</param>
+        /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
+        /// <param name="objectIndexFile">The path to the index file for the object.</param>
         /// <param name="totalLen">The total length of the object.</param>
         /// <param name="chunks">The chunks from the object.</param>
         /// <returns>Boolean indicating success.</returns>
-        public bool AddObjectChunks(string objectName, int totalLen, List<Chunk> chunks)
+        public bool AddObjectChunks(string objectName, string objectIndexFile, int totalLen, List<Chunk> chunks)
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
             if (totalLen < 1) throw new ArgumentException("Total length must be greater than zero.");
             if (chunks == null || chunks.Count < 1) throw new ArgumentException("No chunk data supplied.");
 
             if (ObjectExists(objectName)) return false;
+            if (File.Exists(objectIndexFile)) throw new IOException("Index for object already exists");
 
             DataTable result;
             List<string> addObjectChunksQueries = BatchAddObjectChunksQuery(objectName, totalLen, chunks);
 
-            lock (ObjectLock)
+            CreateFile(objectIndexFile);
+            CreateObjectIndexObjectMapTable(objectIndexFile);
+            
+            foreach (string query in addObjectChunksQueries)
             {
-                foreach (string query in addObjectChunksQueries)
+                if (!QueryObjectIndex(query, objectIndexFile, out result))
                 {
-                    if (!Query(query, out result))
-                    {
-                        if (Debug) Console.WriteLine("Insert query failed: " + query);
-                        return false;
-                    }
+                    if (Debug) Console.WriteLine("Insert query failed: " + query);
+                    return false;
                 }
+            }
 
+            lock (ChunkRefcountLock)
+            {
                 foreach (Chunk currChunk in chunks)
                 {
-                    if (!IncrementChunkRefcount(currChunk.Key, currChunk.Length))
+                    if (!IncrementRefcount(currChunk.Key, currChunk.Length))
                     {
                         if (Debug) Console.WriteLine("Unable to increment refcount for chunk: " + currChunk.Key);
                         return false;
                     }
                 }
+            }
+
+            string insertQuery = 
+                "INSERT INTO object_file_map (object_name, object_len, object_index_file) VALUES " +
+                "('" + objectName + "', '" + totalLen + "', '" + objectIndexFile + "')";
+
+            if (!QueryPoolIndex(insertQuery, out result))
+            {
+                if (Debug) Console.WriteLine("Unable to add object file map for object: " + objectName);
+                return false;
             }
             
             return true;
@@ -258,20 +311,18 @@ namespace WatsonDedupe
         /// Retrieve chunks associated with an object.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
+        /// <param name="objectIndexFile">The path to the index file for the object.</param>
         /// <param name="chunks">The chunks from the object.</param>
         /// <returns>Boolean indicating success.</returns>
-        public bool GetObjectChunks(string objectName, out List<Chunk> chunks)
+        public bool GetObjectChunks(string objectName, string objectIndexFile, out List<Chunk> chunks)
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
             chunks = new List<Chunk>();
-
+            
             string query = "SELECT * FROM object_map WHERE object_name = '" + objectName + "'";
             DataTable result;
-            bool success = false;
-            lock (ObjectLock)
-            {
-                success = Query(query, out result);
-            }
+            bool success = QueryObjectIndex(query, objectIndexFile, out result);
 
             if (result == null || result.Rows.Count < 1) return false;
             if (!success) return false;
@@ -288,37 +339,41 @@ namespace WatsonDedupe
         /// Delete an object and dereference the associated chunks.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
+        /// <param name="objectIndexFile">The path to the index file for the object.</param>
         /// <param name="garbageCollectChunks">List of chunk keys that should be garbage collected.</param>
-        public void DeleteObjectChunks(string objectName, out List<string> garbageCollectChunks)
+        public void DeleteObjectChunks(string objectName, string objectIndexFile, out List<string> garbageCollectChunks)
         {
             garbageCollectChunks = new List<string>();
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
 
             string selectQuery = "SELECT * FROM object_map WHERE object_name = '" + objectName + "'";
             string deleteObjectMapQuery = "DELETE FROM object_map WHERE object_name = '" + objectName + "'";
+            string deleteObjectFileMapQuery = "DELETE FROM object_file_map WHERE object_name = '" + objectName + "'";
+
             DataTable result;
             bool garbageCollect = false;
-
-            lock (ObjectLock)
+            
+            if (!QueryObjectIndex(selectQuery, objectIndexFile, out result))
             {
-                if (!Query(selectQuery, out result))
+                if (Debug)
                 {
-                    if (Debug)
-                    {
-                        Console.WriteLine("Unable to retrieve object map for object: " + objectName);
-                    }
+                    Console.WriteLine("Unable to retrieve object map for object: " + objectName);
                 }
+            }
 
-                if (result == null || result.Rows.Count < 1) return;
+            if (result == null || result.Rows.Count < 1) return;
 
+            lock (ChunkRefcountLock)
+            {
                 foreach (DataRow curr in result.Rows)
                 {
                     Chunk c = Chunk.FromDataRow(curr);
-                    DecrementChunkRefcount(c.Key, out garbageCollect);
+                    DecrementRefcount(c.Key, out garbageCollect);
                     if (garbageCollect) garbageCollectChunks.Add(c.Key);
                 }
 
-                if (!Query(deleteObjectMapQuery, out result))
+                if (!QueryPoolIndex(deleteObjectMapQuery, out result))
                 {
                     if (Debug)
                     {
@@ -326,6 +381,16 @@ namespace WatsonDedupe
                     }
                 }
             }
+
+            if (!QueryPoolIndex(deleteObjectFileMapQuery, out result))
+            {
+                if (Debug)
+                {
+                    Console.WriteLine("Unable to delete object file map entry for object: " + objectName);
+                }
+            }
+
+            File.Delete(objectIndexFile);
         }
 
         /// <summary>
@@ -334,7 +399,7 @@ namespace WatsonDedupe
         /// <param name="chunkKey">The chunk key.</param>
         /// <param name="len">The length of the chunk.</param>
         /// <returns>Boolean indicating success.</returns>
-        public bool IncrementChunkRefcount(string chunkKey, int len)
+        public bool IncrementRefcount(string chunkKey, int len)
         {
             if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
 
@@ -351,13 +416,13 @@ namespace WatsonDedupe
 
             lock (ChunkRefcountLock)
             {
-                if (Query(selectQuery, out selectResult))
+                if (QueryPoolIndex(selectQuery, out selectResult))
                 {
                     if (selectResult == null || selectResult.Rows.Count < 1)
                     {
                         #region New-Entry
 
-                        return Query(insertQuery, out insertResult);
+                        return QueryPoolIndex(insertQuery, out insertResult);
 
                         #endregion
                     }
@@ -374,7 +439,7 @@ namespace WatsonDedupe
                         currCount++;
 
                         updateQuery = "UPDATE chunk_refcount SET ref_count = '" + currCount + "' WHERE chunk_key = '" + chunkKey + "'";
-                        return Query(updateQuery, out updateResult);
+                        return QueryPoolIndex(updateQuery, out updateResult);
 
                         #endregion
                     }
@@ -394,7 +459,7 @@ namespace WatsonDedupe
         /// <param name="chunkKey">The chunk key.</param>
         /// <param name="garbageCollect">Boolean indicating if the chunk should be garbage collected.</param>
         /// <returns>Boolean indicating success.</returns>
-        public bool DecrementChunkRefcount(string chunkKey, out bool garbageCollect)
+        public bool DecrementRefcount(string chunkKey, out bool garbageCollect)
         {
             garbageCollect = false;
             if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
@@ -412,7 +477,7 @@ namespace WatsonDedupe
 
             lock (ChunkRefcountLock)
             {
-                if (Query(selectQuery, out selectResult))
+                if (QueryPoolIndex(selectQuery, out selectResult))
                 {
                     if (selectResult == null || selectResult.Rows.Count < 1)
                     {
@@ -430,12 +495,12 @@ namespace WatsonDedupe
                         if (currCount == 0)
                         {
                             garbageCollect = true;
-                            return Query(deleteQuery, out deleteResult);
+                            return QueryPoolIndex(deleteQuery, out deleteResult);
                         }
                         else
                         {
                             updateQuery = "UPDATE chunk_refcount SET ref_count = '" + currCount + "' WHERE chunk_key = '" + chunkKey + "'";
-                            return Query(updateQuery, out updateResult);
+                            return QueryPoolIndex(updateQuery, out updateResult);
                         }
                     }
                 }
@@ -469,7 +534,7 @@ namespace WatsonDedupe
                 "SELECT * FROM " +
                 "(" +
                 "  (SELECT COUNT(*) AS num_objects FROM " + 
-                "    (SELECT DISTINCT(object_name) FROM object_map) object_names " +
+                "    (SELECT DISTINCT(object_name) FROM object_file_map) object_names " +
                 "  ) num_objects, " +
                 "  (SELECT COUNT(*) AS num_chunks FROM chunk_refcount) num_chunks, " +
                 "  (SELECT SUM(chunk_len * ref_count) AS logical_bytes FROM chunk_refcount) logical_bytes, " +
@@ -480,7 +545,7 @@ namespace WatsonDedupe
 
             lock (ChunkRefcountLock)
             {
-                if (!Query(query, out result))
+                if (!QueryPoolIndex(query, out result))
                 {
                     if (Debug) Console.WriteLine("Unable to retrieve index stats");
                     return false;
@@ -518,13 +583,13 @@ namespace WatsonDedupe
             }
         }
 
-        private void Connect()
+        private void ConnectPoolIndex()
         {
             Conn = new SqliteConnection(ConnStr);
             Conn.Open();
         }
 
-        private void CreateConfigTable()
+        private void CreatePoolIndexConfigTable()
         {
             using (SqliteCommand cmd = Conn.CreateCommand())
             {
@@ -538,9 +603,29 @@ namespace WatsonDedupe
             }
         }
         
-        private void CreateObjectMapTable()
+        private void CreatePoolIndexObjectFileMapTable()
         {
             using (SqliteCommand cmd = Conn.CreateCommand())
+            {
+                cmd.CommandText =
+                    @"CREATE TABLE IF NOT EXISTS object_file_map " +
+                    "(" +
+                    " object_file_map_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    " object_name VARCHAR(64), " +
+                    " object_len INTEGER, " +
+                    " object_index_file VARCHAR(1024) " +
+                    ")";
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private void CreateObjectIndexObjectMapTable(string objectIndexFile)
+        {
+            string connStr = "Data Source=" + objectIndexFile + ";Version=3;";
+            SqliteConnection conn = new SqliteConnection(connStr);
+            conn.Open();
+            
+            using (SqliteCommand cmd = conn.CreateCommand())
             {
                 cmd.CommandText =
                     @"CREATE TABLE IF NOT EXISTS object_map " +
@@ -557,7 +642,7 @@ namespace WatsonDedupe
             }
         }
 
-        private void CreateChunkRefcountTable()
+        private void CreatePoolIndexChunkRefcountTable()
         {
             using (SqliteCommand cmd = Conn.CreateCommand())
             {

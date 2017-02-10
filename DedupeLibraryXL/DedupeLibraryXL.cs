@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 namespace WatsonDedupe
 {
     /// <summary>
-    /// Library for deduplication of objects.
+    /// Library for deduplication of objects using a separate database for each deduplicated object.
     /// </summary>
-    public class DedupeLibrary
+    public class DedupeLibraryXL
     {
         #region Public-Members
 
@@ -28,13 +28,13 @@ namespace WatsonDedupe
 
         #region Private-Members
 
-        private string IndexFile;
+        private string PoolIndexFile;
         private int MinChunkSize;
         private int MaxChunkSize;
         private int ShiftCount;
         private int BoundaryCheckBytes;
 
-        private SqliteWrapper Sql;
+        private SqlitePoolWrapperXL PoolSql;
 
         private Func<Chunk, bool> WriteChunk;
         private Func<string, byte[]> ReadChunk;
@@ -47,28 +47,28 @@ namespace WatsonDedupe
         /// <summary>
         /// Initialize from an existing index.
         /// </summary>
-        /// <param name="indexFile">Path and filename.</param>
+        /// <param name="poolIndexFile">Path and filename.</param>
         /// <param name="writeChunkMethod">Method to call to write a chunk to storage.</param>
         /// <param name="readChunkMethod">Method to call to read a chunk from storage.</param>
         /// <param name="deleteChunkMethod">Method to call to delete a chunk from storage.</param>
         /// <param name="debugDedupe">Enable console logging for deduplication operations.</param>
         /// <param name="debugSql">Enable console logging for SQL operations.</param>
-        public DedupeLibrary(string indexFile, Func<Chunk, bool> writeChunkMethod, Func<string, byte[]> readChunkMethod, Func<string, bool> deleteChunkMethod, bool debugDedupe, bool debugSql)
+        public DedupeLibraryXL(string poolIndexFile, Func<Chunk, bool> writeChunkMethod, Func<string, byte[]> readChunkMethod, Func<string, bool> deleteChunkMethod, bool debugDedupe, bool debugSql)
         {
-            if (String.IsNullOrEmpty(indexFile)) throw new ArgumentNullException(nameof(indexFile));
-            if (!File.Exists(indexFile)) throw new FileNotFoundException("Index file not found.");
+            if (String.IsNullOrEmpty(poolIndexFile)) throw new ArgumentNullException(nameof(poolIndexFile));
+            if (!File.Exists(poolIndexFile)) throw new FileNotFoundException("Index file not found.");
             if (writeChunkMethod == null) throw new ArgumentNullException(nameof(writeChunkMethod));
             if (readChunkMethod == null) throw new ArgumentNullException(nameof(readChunkMethod));
             if (deleteChunkMethod == null) throw new ArgumentNullException(nameof(deleteChunkMethod));
 
-            IndexFile = Common.SanitizeString(indexFile);
+            PoolIndexFile = Common.SanitizeString(poolIndexFile);
             WriteChunk = writeChunkMethod;
             ReadChunk = readChunkMethod;
             DeleteChunk = deleteChunkMethod;
             DebugDedupe = debugDedupe;
             DebugSql = debugSql;
 
-            Sql = new SqliteWrapper(IndexFile, DebugSql);
+            PoolSql = new SqlitePoolWrapperXL(PoolIndexFile, DebugSql);
 
             InitFromExistingIndex();
         }
@@ -76,7 +76,7 @@ namespace WatsonDedupe
         /// <summary>
         /// Create a new index.
         /// </summary>
-        /// <param name="indexFile">Path and filename.</param>
+        /// <param name="poolIndexFile">Path and filename.</param>
         /// <param name="minChunkSize">Minimum chunk size, must be divisible by 8, divisible by 64, and 128 or greater.</param>
         /// <param name="maxChunkSize">Maximum chunk size, must be divisible by 8, divisible by 64, and at least 8 times larger than minimum chunk size.</param>
         /// <param name="shiftCount">Number of bytes to shift while identifying chunk boundaries, must be less than or equal to minimum chunk size.</param>
@@ -86,8 +86,8 @@ namespace WatsonDedupe
         /// <param name="deleteChunkMethod">Method to call to delete a chunk from storage.</param>
         /// <param name="debugDedupe">Enable console logging for deduplication operations.</param>
         /// <param name="debugSql">Enable console logging for SQL operations.</param>
-        public DedupeLibrary(
-            string indexFile,
+        public DedupeLibraryXL(
+            string poolIndexFile,
             int minChunkSize,
             int maxChunkSize,
             int shiftCount, 
@@ -98,7 +98,7 @@ namespace WatsonDedupe
             bool debugDedupe,
             bool debugSql)
         {
-            if (String.IsNullOrEmpty(indexFile)) throw new ArgumentNullException(nameof(indexFile));
+            if (String.IsNullOrEmpty(poolIndexFile)) throw new ArgumentNullException(nameof(poolIndexFile));
             if (minChunkSize % 8 != 0) throw new ArgumentException("Value for minChunkSize must be evenly divisible by 8.");
             if (maxChunkSize % 8 != 0) throw new ArgumentException("Value for maxChunkSize must be evenly divisible by 8.");
             if (minChunkSize % 64 != 0) throw new ArgumentException("Value for minChunkSize must be evenly divisible by 64.");
@@ -112,9 +112,9 @@ namespace WatsonDedupe
             if (deleteChunkMethod == null) throw new ArgumentNullException(nameof(deleteChunkMethod));
             if (boundaryCheckBytes < 1 || boundaryCheckBytes > 8) throw new ArgumentNullException(nameof(boundaryCheckBytes));
 
-            if (File.Exists(indexFile)) throw new IOException("Index file already exists.");
+            if (File.Exists(poolIndexFile)) throw new IOException("Index file already exists.");
 
-            IndexFile = Common.SanitizeString(indexFile);
+            PoolIndexFile = Common.SanitizeString(poolIndexFile);
             MinChunkSize = minChunkSize;
             MaxChunkSize = maxChunkSize;
             ShiftCount = shiftCount;
@@ -125,7 +125,7 @@ namespace WatsonDedupe
             DebugDedupe = debugDedupe;
             DebugSql = debugSql;
 
-            Sql = new SqliteWrapper(IndexFile, DebugSql);
+            PoolSql = new SqlitePoolWrapperXL(PoolIndexFile, DebugSql);
 
             InitNewIndex();
         }
@@ -138,19 +138,21 @@ namespace WatsonDedupe
         /// Store an object in the deduplication index.
         /// </summary>
         /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
+        /// <param name="objectIndexFile">The path to the index file for the object.</param>
         /// <param name="data">The byte data for the object.</param>
         /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
         /// <returns>Boolean indicating success or failure.</returns>
-        public bool StoreObject(string objectName, byte[] data, out List<Chunk> chunks)
+        public bool StoreObject(string objectName, string objectIndexFile, byte[] data, out List<Chunk> chunks)
         {
             #region Initialize
 
             chunks = new List<Chunk>();
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
             if (data == null || data.Length < 1) return false;
             objectName = Common.SanitizeString(objectName);
             
-            if (Sql.ObjectExists(objectName))
+            if (PoolSql.ObjectExists(objectName))
             {
                 if (DebugDedupe) Console.WriteLine("Object already exists");
                 return false;
@@ -176,7 +178,7 @@ namespace WatsonDedupe
 
             #region Add-Object-Map
             
-            if (!Sql.AddObjectChunks(objectName, data.Length, chunks))
+            if (!PoolSql.AddObjectChunks(objectName, objectIndexFile, data.Length, chunks))
             {
                 if (DebugDedupe) Console.WriteLine("Unable to add object");
                 return false;
@@ -196,7 +198,7 @@ namespace WatsonDedupe
             if (!storageSuccess)
             {
                 List<string> garbageCollectKeys;
-                Sql.DeleteObjectChunks(objectName, out garbageCollectKeys);
+                PoolSql.DeleteObjectChunks(objectName, objectIndexFile, out garbageCollectKeys);
 
                 if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
                 {
@@ -220,17 +222,20 @@ namespace WatsonDedupe
         /// Retrieve an object from the deduplication index.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
+        /// <param name="objectIndexFile">The path to the index file for the object.</param>
         /// <param name="data">The byte data from the object.</param>
         /// <returns>Boolean indicating success or failure.</returns>
-        public bool RetrieveObject(string objectName, out byte[] data)
+        public bool RetrieveObject(string objectName, string objectIndexFile, out byte[] data)
         {
             data = null;
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
+            if (!File.Exists(objectIndexFile)) throw new FileNotFoundException();
             objectName = Common.SanitizeString(objectName);
 
             List<Chunk> chunks = new List<Chunk>();
 
-            if (!Sql.GetObjectChunks(objectName, out chunks))
+            if (!PoolSql.GetObjectChunks(objectName, objectIndexFile, out chunks))
             {
                 if (DebugDedupe) Console.WriteLine("Unable to retrieve object chunks");
                 return false;
@@ -269,14 +274,16 @@ namespace WatsonDedupe
         /// Delete an object stored in the deduplication index.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
+        /// <param name="objectIndexFile">The path to the index file for the object.</param>
         /// <returns>Boolean indicating success or failure.</returns>
-        public bool DeleteObject(string objectName)
+        public bool DeleteObject(string objectName, string objectIndexFile)
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (String.IsNullOrEmpty(objectIndexFile)) throw new ArgumentNullException(nameof(objectIndexFile));
             objectName = Common.SanitizeString(objectName);
 
             List<string> garbageCollectChunks = null;
-            Sql.DeleteObjectChunks(objectName, out garbageCollectChunks);
+            PoolSql.DeleteObjectChunks(objectName, objectIndexFile, out garbageCollectChunks);
 
             if (garbageCollectChunks != null && garbageCollectChunks.Count > 0)
             {
@@ -298,7 +305,7 @@ namespace WatsonDedupe
         /// <param name="keys">List of object names.</param>
         public void ListObjects(out List<string> keys)
         {
-            Sql.ListObjects(out keys);
+            PoolSql.ListObjects(out keys);
             return;
         }
 
@@ -309,7 +316,7 @@ namespace WatsonDedupe
         /// <returns>Boolean indicating if the object exists.</returns>
         public bool ObjectExists(string objectName)
         {
-            return Sql.ObjectExists(objectName);
+            return PoolSql.ObjectExists(objectName);
         }
 
         /// <summary>
@@ -324,7 +331,7 @@ namespace WatsonDedupe
         /// <returns>Boolean indicating success or failure.</returns>
         public bool IndexStats(out int numObjects, out int numChunks, out long logicalBytes, out long physicalBytes, out decimal dedupeRatioX, out decimal dedupeRatioPercent)
         {
-            return Sql.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent);
+            return PoolSql.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent);
         }
 
         #endregion
@@ -334,7 +341,7 @@ namespace WatsonDedupe
         private void InitFromExistingIndex()
         {
             string tempVal;
-            if (!Sql.GetConfigData("min_chunk_size", out tempVal))
+            if (!PoolSql.GetConfigData("min_chunk_size", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'min_chunk_size'.");
             }
@@ -344,7 +351,7 @@ namespace WatsonDedupe
                 MinChunkSize = Convert.ToInt32(tempVal);
             }
 
-            if (!Sql.GetConfigData("max_chunk_size", out tempVal))
+            if (!PoolSql.GetConfigData("max_chunk_size", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'max_chunk_size'.");
             }
@@ -354,7 +361,7 @@ namespace WatsonDedupe
                 MaxChunkSize = Convert.ToInt32(tempVal);
             }
 
-            if (!Sql.GetConfigData("shift_count", out tempVal))
+            if (!PoolSql.GetConfigData("shift_count", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'shift_count'.");
             }
@@ -364,7 +371,7 @@ namespace WatsonDedupe
                 ShiftCount = Convert.ToInt32(tempVal);
             }
 
-            if (!Sql.GetConfigData("boundary_check_bytes", out tempVal))
+            if (!PoolSql.GetConfigData("boundary_check_bytes", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'boundary_check_bytes'.");
             }
@@ -377,11 +384,11 @@ namespace WatsonDedupe
 
         private void InitNewIndex()
         {
-            Sql.AddConfigData("min_chunk_size", MinChunkSize.ToString());
-            Sql.AddConfigData("max_chunk_size", MaxChunkSize.ToString());
-            Sql.AddConfigData("shift_count", ShiftCount.ToString());
-            Sql.AddConfigData("boundary_check_bytes", BoundaryCheckBytes.ToString());
-            Sql.AddConfigData("index_per_object", "false");
+            PoolSql.AddConfigData("min_chunk_size", MinChunkSize.ToString());
+            PoolSql.AddConfigData("max_chunk_size", MaxChunkSize.ToString());
+            PoolSql.AddConfigData("shift_count", ShiftCount.ToString());
+            PoolSql.AddConfigData("boundary_check_bytes", BoundaryCheckBytes.ToString());
+            PoolSql.AddConfigData("index_per_object", "true");
         }
 
         private bool ChunkObject(byte[] data, out List<Chunk> chunks)

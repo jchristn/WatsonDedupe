@@ -9,12 +9,13 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using WatsonDedupe;
 
-namespace DedupeCli
+namespace DedupeCliXl
 {
     class Program
     {
         static string Command;
-        static string IndexFile;
+        static string PoolIndexFile;
+        static string ObjectIndexFile;
         static string ChunkDirectory;
         static string ObjectKey;
         static string CreateParams;
@@ -25,7 +26,7 @@ namespace DedupeCli
 
         static bool DebugDedupe = false;
         static bool DebugSql = false;
-        static DedupeLibrary Dedupe;
+        static DedupeLibraryXL Dedupe;
 
         static int NumObjects;
         static int NumChunks;
@@ -50,7 +51,7 @@ namespace DedupeCli
                     return;
                 }
 
-                IndexFile = args[0];
+                PoolIndexFile = args[0];
                 Command = args[1];
 
                 for (int i = 2; i < args.Length; i++)
@@ -65,6 +66,10 @@ namespace DedupeCli
                     else if (args[i].StartsWith("--key=") && args[i].Length > 6)
                     {
                         ObjectKey = args[i].Substring(6);
+                    }
+                    else if (args[i].StartsWith("--objindex=") && args[i].Length > 11)
+                    {
+                        ObjectIndexFile = args[i].Substring(11);
                     }
                     else if (String.Compare(args[i], "--debug") == 0)
                     {
@@ -127,7 +132,7 @@ namespace DedupeCli
                 if (DebugDedupe)
                 {
                     Console.WriteLine("Command         : " + Command);
-                    Console.WriteLine("Index File      : " + IndexFile);
+                    Console.WriteLine("Index File      : " + PoolIndexFile);
                     Console.WriteLine("Chunk Directory : " + ChunkDirectory);
                     Console.WriteLine("Object Key      : " + ObjectKey);
                     if (MinChunkSize > 0) Console.WriteLine("Min Chunk Size  : " + MinChunkSize);
@@ -142,8 +147,8 @@ namespace DedupeCli
 
                 if (String.Compare(Command, "create") == 0)
                 {
-                    Dedupe = new DedupeLibrary(IndexFile, MinChunkSize, MaxChunkSize, ShiftCount, BoundaryCheckBytes, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
-                    if (DebugDedupe) Console.WriteLine("Successfully wrote new index: " + IndexFile);
+                    Dedupe = new DedupeLibraryXL(PoolIndexFile, MinChunkSize, MaxChunkSize, ShiftCount, BoundaryCheckBytes, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                    if (DebugDedupe) Console.WriteLine("Successfully wrote new index: " + PoolIndexFile);
                     return;
                 }
 
@@ -151,12 +156,12 @@ namespace DedupeCli
 
                 #region Initialize-Index
 
-                if (!File.Exists(IndexFile))
+                if (!File.Exists(PoolIndexFile))
                 {
-                    Console.WriteLine("*** Index file " + IndexFile + " not found");
+                    Console.WriteLine("*** Index file " + PoolIndexFile + " not found");
                 }
 
-                Dedupe = new DedupeLibrary(IndexFile, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                Dedupe = new DedupeLibraryXL(PoolIndexFile, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
 
                 #endregion
 
@@ -186,9 +191,13 @@ namespace DedupeCli
                         {
                             Usage("Object key must be supplied");
                         }
+                        else if (String.IsNullOrEmpty(ObjectIndexFile))
+                        {
+                            Usage("Object index file must be supplied");
+                        }
                         else
                         {
-                            if (!Dedupe.RetrieveObject(ObjectKey, out ResponseData))
+                            if (!Dedupe.RetrieveObject(ObjectKey, ObjectIndexFile, out ResponseData))
                             {
                                 Console.WriteLine("Failed");
                             }
@@ -204,6 +213,10 @@ namespace DedupeCli
                         {
                             Usage("Object key must be supplied");
                         }
+                        else if (String.IsNullOrEmpty(ObjectIndexFile))
+                        {
+                            Usage("Object index file must be supplied");
+                        }
                         else
                         {
                             if (Dedupe.ObjectExists(ObjectKey))
@@ -213,7 +226,7 @@ namespace DedupeCli
                             else
                             {
                                 ReadConsoleData();
-                                if (!Dedupe.StoreObject(ObjectKey, RequestData, out Chunks))
+                                if (!Dedupe.StoreObject(ObjectKey, ObjectIndexFile, RequestData, out Chunks))
                                 {
                                     Console.WriteLine("Failed");
                                 }
@@ -230,9 +243,13 @@ namespace DedupeCli
                         {
                             Usage("Object key must be supplied");
                         }
+                        else if (String.IsNullOrEmpty(ObjectIndexFile))
+                        {
+                            Usage("Object index file must be supplied");
+                        }
                         else
                         {
-                            if (!Dedupe.DeleteObject(ObjectKey))
+                            if (!Dedupe.DeleteObject(ObjectKey, ObjectIndexFile))
                             {
                                 Console.WriteLine("Failed");
                             }
@@ -268,7 +285,7 @@ namespace DedupeCli
                             Console.WriteLine(Dedupe.ObjectExists(ObjectKey));
                         }
                         return;
-                        
+
                     default:
                         Usage("Unknown command: " + Command);
                         return;
@@ -281,7 +298,7 @@ namespace DedupeCli
                 ExceptionConsole("Dedupe", "Outer exception", e);
             }
         }
-        
+
         static void ExceptionConsole(string method, string text, Exception e)
         {
             var st = new StackTrace(e, true);
@@ -407,8 +424,8 @@ namespace DedupeCli
                 Console.WriteLine("");
             }
 
-                            //          1         2         3         4         5         6         7        
-                            // 12345678901234567890123456789012345678901234567890123456789012345678901234567890
+            //          1         2         3         4         5         6         7        
+            // 12345678901234567890123456789012345678901234567890123456789012345678901234567890
             Console.WriteLine("Dedupe CLI v" + Version());
             Console.WriteLine("Usage:");
             Console.WriteLine("$ dedupe [index] [command] [options]");
@@ -425,6 +442,7 @@ namespace DedupeCli
             Console.WriteLine("Where [options] are:");
             Console.WriteLine("  --chunks=[dir]      Directory where chunks are stored");
             Console.WriteLine("  --key=[name]        The object key to store or retrieve");
+            Console.WriteLine("  --objindex=[file]   Path and filename to the object index");
             Console.WriteLine("  --debug             Enable dedupe debug logging to the console");
             Console.WriteLine("  --debugsql          Enable SQL debug logging to the console");
             Console.WriteLine("  --params=[params]   Index creation parameters");
@@ -439,8 +457,15 @@ namespace DedupeCli
             Console.WriteLine("    boundarycheckbytes  Number of bytes to compare while locating a chunk");
             Console.WriteLine("");
             Console.WriteLine("Storing an object:");
-            Console.WriteLine("  $ dedupe [index] store --key=[key] --chunks=[dir] < file.txt");
-            Console.WriteLine("  $ echo Some data! | dedupe [index] store --key=[key] --chunks=[dir]");
+            Console.WriteLine("  $ dedupe [index] store ");
+            Console.WriteLine("           --key=[key] ");
+            Console.WriteLine("           --objindex=[file] ");
+            Console.WriteLine("           --chunks=[dir] ");
+            Console.WriteLine("           < file.txt");
+            Console.WriteLine("  $ echo Some data! | dedupe [index] store ");
+            Console.WriteLine("                             --key=[key] ");
+            Console.WriteLine("                             --objindex=[file] ");
+            Console.WriteLine("                             --chunks=[dir]");
             Console.WriteLine("");
             Console.WriteLine("Retrieving an object:");
             Console.WriteLine("  $ dedupe [index] retrieve --key=[key] --chunks=[dir] > file.txt");

@@ -7,6 +7,8 @@
 
 Self-contained C# library for data deduplication using Sqlite. 
 
+![alt tag](https://github.com/jchristn/WatsonDedupe/blob/master/assets/diagram_half.png)
+
 ## Help and Support
 Please contact me for any issues or enhancement requests!  I'm at joel at maraudersoftware dot com.  This is an early release and it works well, however, I need to spend more time on performance.  
 
@@ -19,11 +21,18 @@ The Watson Dedupe library will take an incoming byte array (which you give an ob
 ## Build process
 Copy either the x86 or x64 SQLite.Interop.Dll from the DedupeLibrary\bin\debug or DedupeLibrary\bin\release into your project folder.  If you clean the solution, you'll have to do this again.  This will also need to be done for the test application and CLI application.
 
-## Test App
-A test project is included which will help you exercise the class library.
+## Two Libraries
+Two libraries are included:
+- DedupeLibrary - useful for smaller objects.  A single database is used, which also includes the map of chunks to positions within the source objects.  Use this library when the number of chunks stored is small.
+- DedupeLibraryXL - useful for larger objects or larger chunk sets.  A single database is used, which maps stored objects to a separate index for each object that contains the map of chunks to positions.  Use this library when the number of objects is small and the number of chunks is large.
+
+The examples below are for DedupeLibrary.  The method signatures for DedupeLibraryXL are very similar, but the store, retrieve, and delete methods require the filename and path as a parameter, whereas these are not required in DedupeLibrary.
+
+## Test App 
+Test projects are included for both DedupeLibrary and DedupeLibraryXL which will help you exercise either of the class libraries.
 
 ## CLI
-A CLI project is also included which provides a binary that can be used to interact with the index for object storage, retrieval, removal, and statistics.  CLI examples are shown below.
+CLI projects are also included which provide a binary that can be used to interact with an index of either type (DedupeLibrary or DedupeLibraryXL) for object storage, retrieval, removal, and statistics.  CLI examples for DedupeLibrary are shown below.
 
 ## Library Example
 The library requires that you implement three functions within your app for managing chunk data, specifically, writing, reading, and deleting.  This was done to provide you with flexibility on where you store chunk data and how you manage it.  
