@@ -26,7 +26,7 @@ Two libraries are included:
 The examples below are for DedupeLibrary.  The method signatures for DedupeLibraryXL are very similar, but the store, retrieve, and delete methods require the container name, container index filename as parameters, whereas these are not required in DedupeLibrary.  DedupeLibraryXL will automatically create containers when objects are stored, and remove the containers (and container file) when they are empty.
 
 ## Test App 
-Test projects are included for both DedupeLibrary and DedupeLibraryXL which will help you exercise either of the class libraries.
+Test projects are included for both DedupeLibrary and DedupeLibraryXL which will help you exercise either of the class libraries.  A test GUI app also exists (see https://github.com/jchristn/WatsonDedupeUI).
 
 ## CLI
 CLI projects are also included which provide a binary that can be used to interact with an index of either type (DedupeLibrary or DedupeLibraryXL) for object storage, retrieval, removal, and statistics.  CLI examples for DedupeLibrary are shown below.
