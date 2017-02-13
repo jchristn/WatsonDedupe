@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("DedupeTest")]
+[assembly: AssemblyTitle("DedupeCore")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Marauder Software Inc")]
-[assembly: AssemblyProduct("DedupeTest")]
+[assembly: AssemblyProduct("DedupeCore")]
 [assembly: AssemblyCopyright("Copyright © 2017 Marauder Software Inc")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("9659489f-080f-4f95-a295-53983896611f")]
+[assembly: Guid("dfee45e8-57cb-4c91-85a7-4254537bb251")]
 
 // Version information for an assembly consists of the following four values:
 //

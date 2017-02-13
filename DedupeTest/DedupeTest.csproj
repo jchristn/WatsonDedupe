@@ -54,6 +54,10 @@
     <None Include="DedupeTest.ruleset" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\DedupeCore\DedupeCore.csproj">
+      <Project>{dfee45e8-57cb-4c91-85a7-4254537bb251}</Project>
+      <Name>DedupeCore</Name>
+    </ProjectReference>
     <ProjectReference Include="..\DedupeLibrary\DedupeLibrary.csproj">
       <Project>{456cba84-0bc2-453b-885f-92522272a139}</Project>
       <Name>DedupeLibrary</Name>

@@ -53,6 +53,10 @@
     <None Include="DedupeCliXL.ruleset" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\DedupeCore\DedupeCore.csproj">
+      <Project>{dfee45e8-57cb-4c91-85a7-4254537bb251}</Project>
+      <Name>DedupeCore</Name>
+    </ProjectReference>
     <ProjectReference Include="..\DedupeLibraryXL\DedupeLibraryXL.csproj">
       <Project>{c38dac14-14c2-4111-ab85-0cc59b51f51d}</Project>
       <Name>DedupeLibraryXL</Name>
