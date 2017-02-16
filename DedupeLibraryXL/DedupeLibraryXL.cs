@@ -410,6 +410,18 @@ namespace WatsonDedupe
             return PoolSql.BackupContainerIndex(containerIndexFile, destination, incrementRefCount);
         }
 
+        /// <summary>
+        /// Imports a container index into the deduplication index.
+        /// </summary>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the object.</param>
+        /// <param name="incrementRefCount">Indicate if chunk reference counts should be incremented after copy.</param>
+        /// <returns>Boolean indicating success.</returns>
+        public bool ImportContainerIndex(string containerName, string containerIndexFile, bool incrementRefCount)
+        {
+            return PoolSql.ImportContainerIndex(containerName, containerIndexFile, incrementRefCount);
+        }
+
         #endregion
 
         #region Private-Methods

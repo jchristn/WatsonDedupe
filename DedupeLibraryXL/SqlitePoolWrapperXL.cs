@@ -708,6 +708,60 @@ namespace WatsonDedupe
             return copySuccess;
         }
 
+        /// <summary>
+        /// Imports a container index into the deduplication index.
+        /// </summary>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the object.</param>
+        /// <param name="incrementRefCount">Indicate if chunk reference counts should be incremented after copy.</param>
+        /// <returns>Boolean indicating success.</returns>
+        public bool ImportContainerIndex(string containerName, string containerIndexFile, bool incrementRefCount)
+        {
+            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
+            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+            if (!File.Exists(containerIndexFile)) throw new FileNotFoundException("Container index file does not exist");
+
+            if (ContainerExists(containerName))
+            {
+                if (Debug) Console.WriteLine("Container " + containerName + " already exists");
+                return false;
+            }
+
+            AddContainerFileMap(containerName, containerIndexFile);
+
+            string selectQuery = "SELECT * FROM object_map WHERE container_name = '" + containerName + "'";
+            DataTable selectResult;
+            if (!QueryContainerIndex(selectQuery, containerIndexFile, out selectResult))
+            {
+                if (Debug) Console.WriteLine("Unable to query container " + containerName);
+                return false;
+            }
+
+            if (selectResult == null || selectResult.Rows.Count < 1)
+            {
+                if (Debug) Console.WriteLine("No rows in container " + containerName);
+                return true;
+            }
+
+            if (incrementRefCount)
+            {
+                lock (ChunkRefcountLock)
+                {
+                    foreach (DataRow curr in selectResult.Rows)
+                    {
+                        Chunk c = Chunk.FromDataRow(curr);
+                        if (!IncrementRefcount(c.Key, c.Length))
+                        {
+                            if (Debug) Console.WriteLine("Unable to increment refcount for chunk " + c.Key);
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            return true;
+        }
+
         #endregion
 
         #region Private-Methods
