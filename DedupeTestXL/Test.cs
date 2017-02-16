@@ -49,7 +49,8 @@ namespace DedupeTestXL
                         Console.WriteLine("  cls        clear the screen");
                         Console.WriteLine("  store      store an object in a container");
                         Console.WriteLine("  retrieve   retrieve an object from a container");
-                        Console.WriteLine("  delete     delete an object in a container");
+                        Console.WriteLine("  cdelete    delete a container from the index");
+                        Console.WriteLine("  odelete    delete an object in a container");
                         Console.WriteLine("  clist      list containers in the index");
                         Console.WriteLine("  olist      list objects in a container");
                         Console.WriteLine("  cexists    check if container exists in the index");
@@ -115,7 +116,13 @@ namespace DedupeTestXL
                         }
                         break;
 
-                    case "delete":
+                    case "cdelete":
+                        containerName = Common.InputString("Container name:", null, false);
+                        containerIndexFile = Common.InputString("Container index file:", null, false);
+                        Dedupe.DeleteContainer(containerName, containerIndexFile);
+                        break;
+
+                    case "odelete":
                         key = Common.InputString("Object key:", null, false);
                         containerName = Common.InputString("Container name:", null, false);
                         containerIndexFile = Common.InputString("Container index file:", null, false);

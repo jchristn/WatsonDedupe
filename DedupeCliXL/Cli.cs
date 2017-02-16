@@ -123,7 +123,7 @@ namespace DedupeCliXl
 
                 #region Verify-Values
 
-                List<string> validCommands = new List<string>() { "create", "stats", "store", "retrieve", "delete", "clist", "olist", "cexists", "oexists" };
+                List<string> validCommands = new List<string>() { "create", "stats", "store", "retrieve", "cdelete", "odelete", "clist", "olist", "cexists", "oexists" };
                 if (!validCommands.Contains(Command))
                 {
                     Usage("Invalid command: " + Command);
@@ -255,7 +255,22 @@ namespace DedupeCliXl
                         }
                         return;
 
-                    case "delete":
+                    case "cdelete":
+                        if (String.IsNullOrEmpty(ContainerName))
+                        {
+                            Usage("Container name must be supplied");
+                        }
+                        else if (String.IsNullOrEmpty(ContainerIndexFile))
+                        {
+                            Usage("Container index file must be supplied");
+                        }
+                        else
+                        {
+                            Dedupe.DeleteContainer(ContainerName, ContainerIndexFile);
+                        }
+                        return;
+
+                    case "odelete":
                         if (String.IsNullOrEmpty(ObjectKey))
                         {
                             Usage("Object key must be supplied");
@@ -497,11 +512,12 @@ namespace DedupeCliXl
             Console.WriteLine("  stats               Gather deduplication stats from the index");
             Console.WriteLine("  store               Write an object to a container");
             Console.WriteLine("  retrieve            Retrieve an object from a container");
-            Console.WriteLine("  delete              Delete an object from a container");
-            Console.WriteLine("  clist               List the containers in the index");
-            Console.WriteLine("  cexists             Check if a container exists in the index");
+            Console.WriteLine("  odelete             Delete an object from a container");
+            Console.WriteLine("  cdelete             Delete a container from the index");
             Console.WriteLine("  olist               List the objects in a container");
+            Console.WriteLine("  clist               List the containers in the index");
             Console.WriteLine("  oexists             Check if an object exists in a container");
+            Console.WriteLine("  cexists             Check if a container exists in the index");
             Console.WriteLine("");
             Console.WriteLine("Where [options] are:");
             Console.WriteLine("  --chunks=[dir]      Directory where chunks are stored");

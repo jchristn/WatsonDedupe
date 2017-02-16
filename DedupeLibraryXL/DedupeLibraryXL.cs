@@ -275,7 +275,7 @@ namespace WatsonDedupe
         }
 
         /// <summary>
-        /// Delete an object stored in the deduplication index.
+        /// Delete an object stored in a container.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
         /// <param name="containerName">The name of the container.</param>
@@ -303,6 +303,30 @@ namespace WatsonDedupe
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Delete a container stored in the deduplication index.
+        /// </summary>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        public void DeleteContainer(string containerName, string containerIndexFile)
+        {
+            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
+            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+
+            while (ContainerExists(containerName))
+            {
+                List<string> keys = new List<string>();
+                ListObjects(containerName, containerIndexFile, out keys);
+                if (keys != null && keys.Count > 0)
+                {
+                    foreach (string curr in keys)
+                    {
+                        DeleteObject(curr, containerName, containerIndexFile);
+                    }
+                }
+            }
         }
 
         /// <summary>
