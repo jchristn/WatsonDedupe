@@ -66,11 +66,10 @@ namespace WatsonDedupe
         public bool QueryPoolIndex(string query, out DataTable result)
         {
             result = new DataTable();
+            if (String.IsNullOrEmpty(query)) throw new ArgumentNullException(nameof(query));
 
             try
             {
-                if (String.IsNullOrEmpty(query)) return false;
-
                 using (SqliteCommand cmd = new SqliteCommand(query, Conn))
                 {
                     using (SqliteDataReader rdr = cmd.ExecuteReader())
@@ -80,8 +79,9 @@ namespace WatsonDedupe
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                if (Debug) Console.WriteLine("Query exception [pool]: " + e.Message);
                 return false;
             }
             finally
@@ -91,6 +91,10 @@ namespace WatsonDedupe
                     if (result != null)
                     {
                         Console.WriteLine(result.Rows.Count + " rows [pool], query: " + query);
+                    }
+                    else
+                    {
+                        Console.WriteLine("No ros [pool], query: " + query);
                     }
                 }
             }
@@ -106,6 +110,7 @@ namespace WatsonDedupe
         public bool QueryContainerIndex(string query, string containerIndexFile, out DataTable result)
         {
             result = new DataTable();
+            if (String.IsNullOrEmpty(query)) throw new ArgumentNullException(nameof(query));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
 
             string connStr = "Data Source=" + containerIndexFile + ";Version=3;";
@@ -116,8 +121,6 @@ namespace WatsonDedupe
 
                 try
                 {
-                    if (String.IsNullOrEmpty(query)) return false;
-
                     using (SqliteCommand cmd = new SqliteCommand(query, conn))
                     {
                         using (SqliteDataReader rdr = cmd.ExecuteReader())
@@ -127,8 +130,9 @@ namespace WatsonDedupe
                         }
                     }
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
+                    if (Debug) Console.WriteLine("Query exception [container]: " + e.Message);
                     return false;
                 }
                 finally
@@ -138,6 +142,10 @@ namespace WatsonDedupe
                         if (result != null)
                         {
                             Console.WriteLine(result.Rows.Count + " rows [container], query: " + query);
+                        }
+                        else
+                        {
+                            Console.WriteLine("No ros [container], query: " + query);
                         }
                     }
                 }
@@ -227,6 +235,45 @@ namespace WatsonDedupe
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Add a container and create the required database file if needed.
+        /// </summary>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        public void AddContainer(string containerName, string containerIndexFile)
+        {
+            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
+            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+
+            string selectQuery = "SELECT * FROM container_file_map WHERE container_name = '" + containerName + "'";
+            DataTable selectResult;
+
+            if (!QueryPoolIndex(selectQuery, out selectResult))
+            {
+                if (Debug) Console.WriteLine("Unable to retrieve container file list");
+                throw new IOException("Unable to access container file map table");
+            }
+
+            if (selectResult == null || selectResult.Rows.Count < 1)
+            {
+                string insertQuery =
+                    "INSERT INTO container_file_map (container_name, container_file) VALUES " +
+                    "('" + containerName + "', '" + containerIndexFile + "')";
+                DataTable insertResult;
+
+                if (!QueryPoolIndex(insertQuery, out insertResult))
+                {
+                    if (Debug) Console.WriteLine("Unable to add container file map for container: " + containerName);
+                    throw new IOException("Unable to add container file map entry");
+                }
+            }
+
+            if (!File.Exists(containerIndexFile))
+            {
+                CreateContainerObjectMapTable(containerIndexFile);
+            }
         }
 
         /// <summary>
@@ -349,7 +396,7 @@ namespace WatsonDedupe
                 }
             }
 
-            AddContainerFileMap(containerName, containerIndexFile);
+            AddContainer(containerName, containerIndexFile);
             return true;
         }
 
@@ -372,8 +419,17 @@ namespace WatsonDedupe
             DataTable result;
             bool success = QueryContainerIndex(query, containerIndexFile, out result);
 
-            if (result == null || result.Rows.Count < 1) return false;
-            if (!success) return false;
+            if (result == null || result.Rows.Count < 1)
+            {
+                if (Debug) Console.WriteLine("No rows returned");
+                return false;
+            }
+
+            if (!success)
+            {
+                if (Debug) Console.WriteLine("Query failed");
+                return false;
+            }
 
             foreach (DataRow curr in result.Rows)
             {
@@ -727,7 +783,7 @@ namespace WatsonDedupe
                 return false;
             }
 
-            AddContainerFileMap(containerName, containerIndexFile);
+            AddContainer(containerName, containerIndexFile);
 
             string selectQuery = "SELECT * FROM object_map WHERE container_name = '" + containerName + "'";
             DataTable selectResult;
@@ -921,35 +977,6 @@ namespace WatsonDedupe
             return ret;
         }
 
-        private void AddContainerFileMap(string containerName, string containerIndexFile)
-        {
-            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
-            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
-
-            string selectQuery = "SELECT * FROM container_file_map WHERE container_name = '" + containerName + "'";
-            DataTable selectResult;
-
-            if (!QueryPoolIndex(selectQuery, out selectResult))
-            {
-                if (Debug) Console.WriteLine("Unable to retrieve container file list");
-                throw new IOException("Unable to access container file map table");
-            }
-
-            if (selectResult == null || selectResult.Rows.Count < 1)
-            {
-                string insertQuery =
-                    "INSERT INTO container_file_map (container_name, container_file) VALUES " +
-                    "('" + containerName + "', '" + containerIndexFile + "')";
-                DataTable insertResult;
-
-                if (!QueryPoolIndex(insertQuery, out insertResult))
-                {
-                    if (Debug) Console.WriteLine("Unable to add container file map for container: " + containerName);
-                    throw new IOException("Unable to add container file map entry");
-                }
-            }
-        }
-        
         private void DeleteContainerFileMap(string containerName, string containerIndexFile)
         {
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));

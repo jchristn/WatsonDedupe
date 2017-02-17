@@ -149,7 +149,7 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             if (data == null || data.Length < 1) return false;
             objectName = Common.SanitizeString(objectName);
-            
+
             if (Sql.ObjectExists(objectName))
             {
                 if (DebugDedupe) Console.WriteLine("Object already exists");
@@ -175,7 +175,7 @@ namespace WatsonDedupe
             #endregion
 
             #region Add-Object-Map
-            
+
             if (!Sql.AddObjectChunks(objectName, data.Length, chunks))
             {
                 if (DebugDedupe) Console.WriteLine("Unable to add object");
@@ -212,7 +212,97 @@ namespace WatsonDedupe
             }
 
             return true;
-            
+
+            #endregion
+        }
+
+        /// <summary>
+        /// Store an object within a container in the deduplication index if it doesn't already exist, or, replace the object if it does.
+        /// </summary>
+        /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
+        /// <param name="data">The byte data for the object.</param>
+        /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
+        /// <returns>Boolean indicating success or failure.</returns>
+        public bool StoreOrReplaceObject(string objectName, byte[] data, out List<Chunk> chunks)
+        {
+            #region Initialize
+
+            chunks = new List<Chunk>();
+            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (data == null || data.Length < 1) return false;
+            objectName = Common.SanitizeString(objectName);
+
+            if (Sql.ObjectExists(objectName))
+            {
+                if (DebugDedupe) Console.WriteLine("Object already exists, deleting");
+                if (!DeleteObject(objectName))
+                {
+                    if (DebugDedupe) Console.WriteLine("Unable to delete existing object");
+                    return false;
+                }
+                else
+                {
+                    if (DebugDedupe) Console.WriteLine("Successfully deleted object for replacement");
+                }
+            }
+
+            #endregion
+
+            #region Chunk-Data
+
+            if (!ChunkObject(data, out chunks))
+            {
+                if (DebugDedupe) Console.WriteLine("Unable to chunk supplied data");
+                return false;
+            }
+
+            if (chunks == null || chunks.Count < 1)
+            {
+                if (DebugDedupe) Console.WriteLine("No chunks found in supplied data");
+                return false;
+            }
+
+            #endregion
+
+            #region Add-Object-Map
+
+            if (!Sql.AddObjectChunks(objectName, data.Length, chunks))
+            {
+                if (DebugDedupe) Console.WriteLine("Unable to add object");
+                return false;
+            }
+
+            bool storageSuccess = true;
+            foreach (Chunk curr in chunks)
+            {
+                if (!WriteChunk(curr))
+                {
+                    if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
+                    storageSuccess = false;
+                    break;
+                }
+            }
+
+            if (!storageSuccess)
+            {
+                List<string> garbageCollectKeys;
+                Sql.DeleteObjectChunks(objectName, out garbageCollectKeys);
+
+                if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
+                {
+                    foreach (string key in garbageCollectKeys)
+                    {
+                        if (!DeleteChunk(key))
+                        {
+                            if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
+                        }
+                    }
+                }
+                return false;
+            }
+
+            return true;
+
             #endregion
         }
 
