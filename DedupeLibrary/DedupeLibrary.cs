@@ -33,6 +33,7 @@ namespace WatsonDedupe
         private int MaxChunkSize;
         private int ShiftCount;
         private int BoundaryCheckBytes;
+        private readonly object ChunkLock;
 
         private SqliteWrapper Sql;
 
@@ -67,6 +68,7 @@ namespace WatsonDedupe
             DeleteChunk = deleteChunkMethod;
             DebugDedupe = debugDedupe;
             DebugSql = debugSql;
+            ChunkLock = new object();
 
             Sql = new SqliteWrapper(IndexFile, DebugSql);
 
@@ -124,6 +126,7 @@ namespace WatsonDedupe
             DeleteChunk = deleteChunkMethod;
             DebugDedupe = debugDedupe;
             DebugSql = debugSql;
+            ChunkLock = new object();
 
             Sql = new SqliteWrapper(IndexFile, DebugSql);
 
@@ -176,39 +179,42 @@ namespace WatsonDedupe
 
             #region Add-Object-Map
 
-            if (!Sql.AddObjectChunks(objectName, data.Length, chunks))
+            lock (ChunkLock)
             {
-                if (DebugDedupe) Console.WriteLine("Unable to add object");
-                return false;
-            }
-
-            bool storageSuccess = true;
-            foreach (Chunk curr in chunks)
-            {
-                if (!WriteChunk(curr))
+                if (!Sql.AddObjectChunks(objectName, data.Length, chunks))
                 {
-                    if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
-                    storageSuccess = false;
-                    break;
+                    if (DebugDedupe) Console.WriteLine("Unable to add object");
+                    return false;
                 }
-            }
 
-            if (!storageSuccess)
-            {
-                List<string> garbageCollectKeys;
-                Sql.DeleteObjectChunks(objectName, out garbageCollectKeys);
-
-                if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
+                bool storageSuccess = true;
+                foreach (Chunk curr in chunks)
                 {
-                    foreach (string key in garbageCollectKeys)
+                    if (!WriteChunk(curr))
                     {
-                        if (!DeleteChunk(key))
-                        {
-                            if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
-                        }
+                        if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
+                        storageSuccess = false;
+                        break;
                     }
                 }
-                return false;
+
+                if (!storageSuccess)
+                {
+                    List<string> garbageCollectKeys;
+                    Sql.DeleteObjectChunks(objectName, out garbageCollectKeys);
+
+                    if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
+                    {
+                        foreach (string key in garbageCollectKeys)
+                        {
+                            if (!DeleteChunk(key))
+                            {
+                                if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
+                            }
+                        }
+                    }
+                    return false;
+                }
             }
 
             return true;
@@ -266,39 +272,42 @@ namespace WatsonDedupe
 
             #region Add-Object-Map
 
-            if (!Sql.AddObjectChunks(objectName, data.Length, chunks))
+            lock (ChunkLock)
             {
-                if (DebugDedupe) Console.WriteLine("Unable to add object");
-                return false;
-            }
-
-            bool storageSuccess = true;
-            foreach (Chunk curr in chunks)
-            {
-                if (!WriteChunk(curr))
+                if (!Sql.AddObjectChunks(objectName, data.Length, chunks))
                 {
-                    if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
-                    storageSuccess = false;
-                    break;
+                    if (DebugDedupe) Console.WriteLine("Unable to add object");
+                    return false;
                 }
-            }
 
-            if (!storageSuccess)
-            {
-                List<string> garbageCollectKeys;
-                Sql.DeleteObjectChunks(objectName, out garbageCollectKeys);
-
-                if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
+                bool storageSuccess = true;
+                foreach (Chunk curr in chunks)
                 {
-                    foreach (string key in garbageCollectKeys)
+                    if (!WriteChunk(curr))
                     {
-                        if (!DeleteChunk(key))
-                        {
-                            if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
-                        }
+                        if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
+                        storageSuccess = false;
+                        break;
                     }
                 }
-                return false;
+
+                if (!storageSuccess)
+                {
+                    List<string> garbageCollectKeys;
+                    Sql.DeleteObjectChunks(objectName, out garbageCollectKeys);
+
+                    if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
+                    {
+                        foreach (string key in garbageCollectKeys)
+                        {
+                            if (!DeleteChunk(key))
+                            {
+                                if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
+                            }
+                        }
+                    }
+                    return false;
+                }
             }
 
             return true;
@@ -320,36 +329,39 @@ namespace WatsonDedupe
 
             List<Chunk> chunks = new List<Chunk>();
 
-            if (!Sql.GetObjectChunks(objectName, out chunks))
+            lock (ChunkLock)
             {
-                if (DebugDedupe) Console.WriteLine("Unable to retrieve object chunks");
-                return false;
-            }
-
-            if (chunks == null || chunks.Count < 1)
-            {
-                if (DebugDedupe) Console.WriteLine("No chunks returned");
-                return false;
-            }
-
-            int totalSize = 0;
-            foreach (Chunk curr in chunks)
-            {
-                totalSize += curr.Length;
-            }
-
-            data = Common.InitBytes(totalSize, 0x00);
-
-            foreach (Chunk curr in chunks)
-            {
-                byte[] chunkData = ReadChunk(curr.Key);
-                if (chunkData == null || chunkData.Length < 1)
+                if (!Sql.GetObjectChunks(objectName, out chunks))
                 {
-                    if (DebugDedupe) Console.WriteLine("Unable to read chunk " + curr.Key);
+                    if (DebugDedupe) Console.WriteLine("Unable to retrieve object chunks");
                     return false;
                 }
 
-                Buffer.BlockCopy(chunkData, 0, data, curr.Address, chunkData.Length);
+                if (chunks == null || chunks.Count < 1)
+                {
+                    if (DebugDedupe) Console.WriteLine("No chunks returned");
+                    return false;
+                }
+
+                int totalSize = 0;
+                foreach (Chunk curr in chunks)
+                {
+                    totalSize += curr.Length;
+                }
+
+                data = Common.InitBytes(totalSize, 0x00);
+
+                foreach (Chunk curr in chunks)
+                {
+                    byte[] chunkData = ReadChunk(curr.Key);
+                    if (chunkData == null || chunkData.Length < 1)
+                    {
+                        if (DebugDedupe) Console.WriteLine("Unable to read chunk " + curr.Key);
+                        return false;
+                    }
+
+                    Buffer.BlockCopy(chunkData, 0, data, curr.Address, chunkData.Length);
+                }
             }
 
             return true;
@@ -366,15 +378,18 @@ namespace WatsonDedupe
             objectName = Common.SanitizeString(objectName);
 
             List<string> garbageCollectChunks = null;
-            Sql.DeleteObjectChunks(objectName, out garbageCollectChunks);
 
-            if (garbageCollectChunks != null && garbageCollectChunks.Count > 0)
+            lock (ChunkLock)
             {
-                foreach (string key in garbageCollectChunks)
+                Sql.DeleteObjectChunks(objectName, out garbageCollectChunks);
+                if (garbageCollectChunks != null && garbageCollectChunks.Count > 0)
                 {
-                    if (!DeleteChunk(key))
+                    foreach (string key in garbageCollectChunks)
                     {
-                        if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
+                        if (!DeleteChunk(key))
+                        {
+                            if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
+                        }
                     }
                 }
             }
