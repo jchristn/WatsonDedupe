@@ -708,16 +708,18 @@ namespace WatsonDedupe
         /// Copies a container index database to another file.
         /// </summary>
         /// <param name="containerIndexFile">The path to the index file for the container.</param>
-        /// <param name="destination">The destination file.</param>
+        /// <param name="destinationIndexFile">The destination file.</param>
         /// <param name="incrementRefCount">Indicate if chunk reference counts should be incremented after copy.</param>
         /// <returns>Boolean indicating success.</returns>
-        public bool BackupContainerIndex(string containerIndexFile, string destination, bool incrementRefCount)
+        public bool BackupContainerIndex(string containerIndexFile, string destinationIndexFile, string newContainerName, bool incrementRefCount)
         {
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
-            if (String.IsNullOrEmpty(destination)) throw new ArgumentNullException(nameof(destination));
+            if (String.IsNullOrEmpty(destinationIndexFile)) throw new ArgumentNullException(nameof(destinationIndexFile));
+            if (String.IsNullOrEmpty(newContainerName)) throw new ArgumentNullException(nameof(newContainerName));
 
             bool copySuccess = false;
             DataTable result;
+            string query = "";
 
             using (SqliteConnection conn = new SqliteConnection("Data Source=" + containerIndexFile + ";Version=3;"))
             {
@@ -729,7 +731,7 @@ namespace WatsonDedupe
 
                 try
                 {
-                    File.Copy(containerIndexFile, destination, true);
+                    File.Copy(containerIndexFile, destinationIndexFile, true);
                     copySuccess = true;
                 }
                 catch (Exception)
@@ -742,9 +744,16 @@ namespace WatsonDedupe
                 }
             }
 
+            query = "UPDATE object_map SET container_name = '" + newContainerName + "'";
+            if (!QueryContainerIndex(query, destinationIndexFile, out result))
+            {
+                if (Debug) Console.WriteLine("Unable to update container name in destination index file");
+                return false;
+            }
+
             if (incrementRefCount)
             {
-                string query = "SELECT * FROM object_map";
+                query = "SELECT * FROM object_map";
                 if (!QueryContainerIndex(query, containerIndexFile, out result))
                 {
                     if (Debug) Console.WriteLine("Unable to retrieve object map from container " + containerIndexFile);
@@ -761,6 +770,7 @@ namespace WatsonDedupe
                 }
             }
 
+            AddContainer(newContainerName, destinationIndexFile);
             return copySuccess;
         }
 

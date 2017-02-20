@@ -524,12 +524,13 @@ namespace WatsonDedupe
         /// Copies a container index database to another file.
         /// </summary>
         /// <param name="containerIndexFile">The path to the index file for the container.</param>
-        /// <param name="destination">The destination file.</param>
+        /// <param name="destinationIndexFile">The destination file.</param>
+        /// <param name="newContainerName">The name of the new container.</param>
         /// <param name="incrementRefCount">Indicate if chunk reference counts should be incremented after copy.</param>
         /// <returns>Boolean indicating success.</returns>
-        public bool BackupContainerIndex(string containerIndexFile, string destination, bool incrementRefCount)
+        public bool BackupContainerIndex(string containerIndexFile, string destinationIndexFile, string newContainerName, bool incrementRefCount)
         {
-            return PoolSql.BackupContainerIndex(containerIndexFile, destination, incrementRefCount);
+            return PoolSql.BackupContainerIndex(containerIndexFile, destinationIndexFile, newContainerName, incrementRefCount);
         }
 
         /// <summary>
