@@ -11,8 +11,8 @@ namespace DedupeTestXL
     class Test
     {
         static DedupeLibraryXL Dedupe;
-        static bool DebugDedupe = true;
-        static bool DebugSql = true;
+        static bool DebugDedupe = false;
+        static bool DebugSql = false;
 
         static void Main(string[] args)
         {

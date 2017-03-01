@@ -9,7 +9,7 @@ using Mono.Data.Sqlite;
 
 namespace WatsonDedupe
 {
-    public class SqlitePoolWrapperXL
+    public class SqliteWrapperXL
     {
         #region Public-Members
 
@@ -34,7 +34,7 @@ namespace WatsonDedupe
         /// </summary>
         /// <param name="indexFile">The index database file.</param>
         /// <param name="debug">Enable or disable console logging.</param>
-        public SqlitePoolWrapperXL(string indexFile, bool debug)
+        public SqliteWrapperXL(string indexFile, bool debug)
         {
             if (String.IsNullOrEmpty(indexFile)) throw new ArgumentNullException(nameof(indexFile));
 
@@ -162,6 +162,9 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             if (String.IsNullOrEmpty(val)) throw new ArgumentNullException(nameof(val));
 
+            key = Common.SanitizeString(key);
+            val = Common.SanitizeString(val);
+
             string keyCheckQuery = "SELECT * FROM dedupe_config WHERE key = '" + key + "'";
             DataTable keyCheckResult;
 
@@ -195,6 +198,8 @@ namespace WatsonDedupe
             val = null;
             if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
+            key = Common.SanitizeString(key);
+
             string keyQuery = "SELECT val FROM dedupe_config WHERE key = '" + key + "' LIMIT 1";
             DataTable result;
 
@@ -226,6 +231,8 @@ namespace WatsonDedupe
         {
             if (String.IsNullOrEmpty(containerName)) return false;
 
+            containerName = Common.SanitizeString(containerName);
+
             string query = "SELECT * FROM container_file_map WHERE container_name = '" + containerName + "' LIMIT 1";
             DataTable result;
 
@@ -246,6 +253,9 @@ namespace WatsonDedupe
         {
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+
+            containerName = Common.SanitizeString(containerName);
+            containerIndexFile = Common.SanitizeString(containerIndexFile);
 
             string selectQuery = "SELECT * FROM container_file_map WHERE container_name = '" + containerName + "'";
             DataTable selectResult;
@@ -288,6 +298,10 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(objectName)) return false;
             if (String.IsNullOrEmpty(containerName)) return false;
             if (String.IsNullOrEmpty(containerIndexFile)) return false;
+
+            objectName = Common.SanitizeString(objectName);
+            containerName = Common.SanitizeString(containerName);
+            containerIndexFile = Common.SanitizeString(containerIndexFile);
 
             if (!ContainerExists(containerName)) return false;
 
@@ -333,6 +347,11 @@ namespace WatsonDedupe
         /// <param name="keys">List of container keys.</param>
         public void ListObjects(string containerName, string containerIndexFile, out List<string> keys)
         {
+            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
+            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+
+            containerName = Common.SanitizeString(containerName);
+
             keys = new List<string>();
 
             string query = "SELECT DISTINCT object_name FROM object_map";
@@ -366,6 +385,9 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
             if (totalLen < 1) throw new ArgumentException("Total length must be greater than zero.");
             if (chunks == null || chunks.Count < 1) throw new ArgumentException("No chunk data supplied.");
+
+            objectName = Common.SanitizeString(objectName);
+            containerName = Common.SanitizeString(containerName);
 
             if (ObjectExists(objectName, containerName, containerIndexFile)) throw new IOException("Object already exists in container");
 
@@ -414,7 +436,10 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
             chunks = new List<Chunk>();
-            
+
+            objectName = Common.SanitizeString(objectName);
+            containerName = Common.SanitizeString(containerName);
+
             string query = "SELECT * FROM object_map WHERE object_name = '" + objectName + "' AND container_name = '" + containerName + "'";
             DataTable result;
             bool success = QueryContainerIndex(query, containerIndexFile, out result);
@@ -452,6 +477,9 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+
+            objectName = Common.SanitizeString(objectName);
+            containerName = Common.SanitizeString(containerName);
 
             string selectQuery = "SELECT * FROM object_map WHERE object_name = '" + objectName + "' AND container_name = '" + containerName + "'";
             string deleteObjectMapQuery = "DELETE FROM object_map WHERE object_name = '" + objectName + "' AND container_name = '" + containerName + "'";
@@ -503,6 +531,8 @@ namespace WatsonDedupe
         public bool IncrementRefcount(string chunkKey, int len)
         {
             if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
+
+            chunkKey = Common.SanitizeString(chunkKey);
 
             string selectQuery = "";
             string updateQuery = "";
@@ -565,16 +595,15 @@ namespace WatsonDedupe
             garbageCollect = false;
             if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
 
-            string selectQuery = "";
+            chunkKey = Common.SanitizeString(chunkKey);
+
+            string selectQuery = "SELECT * FROM chunk_refcount WHERE chunk_key = '" + chunkKey + "'";
+            string deleteQuery = "DELETE FROM chunk_refcount WHERE chunk_key = '" + chunkKey + "'";
             string updateQuery = "";
-            string deleteQuery = "";
 
             DataTable selectResult;
             DataTable updateResult;
             DataTable deleteResult;
-
-            selectQuery = "SELECT * FROM chunk_refcount WHERE chunk_key = '" + chunkKey + "'";
-            deleteQuery = "DELETE FROM chunk_refcount WHERE chunk_key = '" + chunkKey + "'";
 
             lock (ChunkRefcountLock)
             {
@@ -717,6 +746,8 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(destinationIndexFile)) throw new ArgumentNullException(nameof(destinationIndexFile));
             if (String.IsNullOrEmpty(newContainerName)) throw new ArgumentNullException(nameof(newContainerName));
 
+            newContainerName = Common.SanitizeString(newContainerName);
+
             bool copySuccess = false;
             DataTable result;
             string query = "";
@@ -787,10 +818,12 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
             if (!File.Exists(containerIndexFile)) throw new FileNotFoundException("Container index file does not exist");
 
+            containerName = Common.SanitizeString(containerName);
+
             if (ContainerExists(containerName))
             {
                 if (Debug) Console.WriteLine("Container " + containerName + " already exists");
-                return false;
+                return true;
             }
 
             AddContainer(containerName, containerIndexFile);
@@ -917,6 +950,11 @@ namespace WatsonDedupe
 
         private List<string> BatchAddContainerChunksQuery(string objectName, string containerName, int totalLen, List<Chunk> chunks)
         {
+            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
+
+            containerName = Common.SanitizeString(containerName);
+
             List<string> ret = new List<string>();
 
             bool moreRecords = true;
@@ -942,7 +980,7 @@ namespace WatsonDedupe
                             "'" + containerName + "', " +
                             "'" + objectName + "', " +
                             "'" + totalLen + "', " +
-                            "'" + chunks[i + currPosition].Key + "', " +
+                            "'" + Common.SanitizeString(chunks[i + currPosition].Key) + "', " +
                             "'" + chunks[i + currPosition].Length + "', " +
                             "'" + chunks[i + currPosition].Position + "', " +
                             "'" + chunks[i + currPosition].Address + "'" +
@@ -966,7 +1004,7 @@ namespace WatsonDedupe
                             "'" + containerName + "', " +
                             "'" + objectName + "', " +
                             "'" + totalLen + "', " +
-                            "'" + chunks[i + currPosition].Key + "', " +
+                            "'" + Common.SanitizeString(chunks[i + currPosition].Key) + "', " +
                             "'" + chunks[i + currPosition].Length + "', " +
                             "'" + chunks[i + currPosition].Position + "', " +
                             "'" + chunks[i + currPosition].Address + "'" +
@@ -992,6 +1030,8 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
 
+            containerName = Common.SanitizeString(containerName);
+
             string deleteQuery = "DELETE FROM container_file_map WHERE container_name = '" + containerName + "'";
             DataTable deleteResult;
 
@@ -1004,6 +1044,8 @@ namespace WatsonDedupe
 
         private int GetObjectRowCount(string containerIndexFile, string objectName)
         {
+            if (!String.IsNullOrEmpty(objectName)) objectName = Common.SanitizeString(objectName);
+
             string selectQuery = "SELECT COUNT(*) AS num_rows FROM object_map ";
             if (!String.IsNullOrEmpty(objectName)) selectQuery += "WHERE object_name = '" + objectName + "'";
             DataTable selectResult;

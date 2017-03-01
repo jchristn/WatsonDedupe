@@ -35,7 +35,7 @@ namespace WatsonDedupe
         private int BoundaryCheckBytes;
         private readonly object ChunkLock;
 
-        private SqlitePoolWrapperXL PoolSql;
+        private SqliteWrapperXL PoolSql;
 
         private Func<Chunk, bool> WriteChunk;
         private Func<string, byte[]> ReadChunk;
@@ -70,7 +70,7 @@ namespace WatsonDedupe
             DebugSql = debugSql;
             ChunkLock = new object();
 
-            PoolSql = new SqlitePoolWrapperXL(PoolIndexFile, DebugSql);
+            PoolSql = new SqliteWrapperXL(PoolIndexFile, DebugSql);
 
             InitFromExistingIndex();
         }
@@ -128,7 +128,7 @@ namespace WatsonDedupe
             DebugSql = debugSql;
             ChunkLock = new object();
 
-            PoolSql = new SqlitePoolWrapperXL(PoolIndexFile, DebugSql);
+            PoolSql = new SqliteWrapperXL(PoolIndexFile, DebugSql);
 
             InitNewIndex();
         }
