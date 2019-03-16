@@ -7,31 +7,41 @@
 
 Self-contained C# library for data deduplication using Sqlite. 
 
+As of v1.0.14, Watson Dedupe is now targeted to .NET Core 2.0 and .NET Framework 4.5.2.
+
 ![alt tag](https://github.com/jchristn/WatsonDedupe/blob/master/assets/diagram_half.png)
 
 ## Help and Support
-Please contact me for any issues or enhancement requests!  I'm at joel at maraudersoftware dot com.  This is an early release and it works well, however, I need to spend more time on performance.  
+
+Please contact me or file an issue here if you encounter any problems with the library or have suggestions! 
 
 ## Installing with NuGet
+
 Due to some unforseen issues with NuGet, you must download and add sqlite3.dll to your project manually.  Set it to copy to output always.
 
 ## Under the Hood
+
 The Watson Dedupe library will take an incoming byte array (which you give an object key name) and utilize a sliding window performing MD5 calculations over the data in the window to identify breakpoints in the data (this is called 'chunking').  Each chunk of data is assigned a chunk key (based on the SHA256 of the data).  MD5 is used for breakpoint identification for speed, and SHA256 is used for key assignment to practically eliminate the likelihood of hash collisions.  Tables in a Sqlite database are maintained to indicate which object keys map to which chunk keys and their ordering/position.  Chunks are stored in a directory you specify.  On retrieval, the object key data is retrieved from the index, the appropriate chunk keys are retrieved, and the object is reconstructed.  As long as the chunk data is consistent across analyzed data sets, identical chunk keys will be created, meaning duplicate data chunks are only stored once.  Further, each chunk key has a separate associated reference count to ensure that chunks are not garbage collected when a referencing object is deleted should another object also hold that reference.
 
 ## Two Libraries
+
 Two libraries are included:
+
 - DedupeLibrary - one single repository (database) useful for smaller objects and chunk counts where the number of database rows will not impede performance.  Use this library for small deployments with few objects and few chunks.
 - DedupeLibraryXL - one master database referencing one or more container databases.  Useful for larger objects or larger chunk sets where the row count would otherwise impede performance.  Use this libray for larger deployments.
 
 The examples below are for DedupeLibrary.  The method signatures for DedupeLibraryXL are very similar, but the store, retrieve, and delete methods require the container name, container index filename as parameters, whereas these are not required in DedupeLibrary.  DedupeLibraryXL will automatically create containers when objects are stored, and remove the containers (and container file) when they are empty.
 
 ## Test App 
+
 Test projects are included for both DedupeLibrary and DedupeLibraryXL which will help you exercise either of the class libraries.  A test GUI app also exists (see https://github.com/jchristn/WatsonDedupeUI).
 
 ## CLI
+
 CLI projects are also included which provide a binary that can be used to interact with an index of either type (DedupeLibrary or DedupeLibraryXL) for object storage, retrieval, removal, and statistics.  CLI examples for DedupeLibrary are shown below.
 
 ## Library Example
+
 The library requires that you implement three functions within your app for managing chunk data, specifically, writing, reading, and deleting.  This was done to provide you with flexibility on where you store chunk data and how you manage it.  
 
 Be sure to create the directory 'Chunks' prior to execution, and include a text file named 'kjv.txt' in the output directory (you can use the 'bible.txt' file from the SampleData folder for this purpose, but rename it).
@@ -144,6 +154,7 @@ namespace WatsonDedupeSampleApp
 ```
 
 ## Index Settings
+
 Four parameters are used when creating the index: minimum chunk size, maximum chunk size, shift count, and boundary check bytes.  They are defined as follows:
 
 - Minimum chunk size: the smallest amount of data that can be considered a chunk of data
@@ -164,4 +175,5 @@ Recommended settings for most environments (min, max, shift, boundary):
 - For large file environments, use 8192, 65536, 512, and 3
 
 ## Running under Mono
+
 This library uses Mono.Data.Sqlite which requires sqlite3.dll.  sqlite3.dll has been manually added to each project with its copy setting set to "always copy".  You may want to use the Mono AOT (ahead of time) compiler prior to using any binary that includes this library on Mono.
