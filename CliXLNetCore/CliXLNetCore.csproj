@@ -8,16 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="sqlite3.dll" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="sqlite3.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\DedupeCore\DedupeCore.csproj" />
     <ProjectReference Include="..\DedupeLibraryXL\DedupeLibraryXL.csproj" />
   </ItemGroup>

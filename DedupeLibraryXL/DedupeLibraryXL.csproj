@@ -13,17 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="sqlite3.dll" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="sqlite3.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Mono.Data.Sqlite" Version="1.0.61" />
+    <PackageReference Include="System.Data.SQLite" Version="1.0.110" />
   </ItemGroup>
 
   <ItemGroup>

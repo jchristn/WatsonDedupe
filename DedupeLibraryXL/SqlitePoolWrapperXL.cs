@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Mono.Data.Sqlite;
+using System.Data.SQLite;
 
 namespace WatsonDedupe
 {
@@ -19,7 +19,7 @@ namespace WatsonDedupe
 
         private string IndexFile;
         private string ConnStr;
-        private SqliteConnection Conn;
+        private SQLiteConnection Conn;
         private bool Debug;
 
         private readonly object ConfigLock;
@@ -70,9 +70,9 @@ namespace WatsonDedupe
 
             try
             {
-                using (SqliteCommand cmd = new SqliteCommand(query, Conn))
+                using (SQLiteCommand cmd = new SQLiteCommand(query, Conn))
                 {
-                    using (SqliteDataReader rdr = cmd.ExecuteReader())
+                    using (SQLiteDataReader rdr = cmd.ExecuteReader())
                     {
                         result.Load(rdr);
                         return true;
@@ -115,15 +115,15 @@ namespace WatsonDedupe
 
             string connStr = "Data Source=" + containerIndexFile + ";Version=3;";
             
-            using (SqliteConnection conn = new SqliteConnection(connStr))
+            using (SQLiteConnection conn = new SQLiteConnection(connStr))
             {
                 conn.Open();
 
                 try
                 {
-                    using (SqliteCommand cmd = new SqliteCommand(query, conn))
+                    using (SQLiteCommand cmd = new SQLiteCommand(query, conn))
                     {
-                        using (SqliteDataReader rdr = cmd.ExecuteReader())
+                        using (SQLiteDataReader rdr = cmd.ExecuteReader())
                         {
                             result.Load(rdr);
                             return true;
@@ -711,7 +711,7 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(destination)) throw new ArgumentNullException(nameof(destination));
 
             bool copySuccess = false;
-            using (SqliteCommand cmd = new SqliteCommand("BEGIN IMMEDIATE;", Conn))
+            using (SQLiteCommand cmd = new SQLiteCommand("BEGIN IMMEDIATE;", Conn))
             {
                 cmd.ExecuteNonQuery();
             }
@@ -725,7 +725,7 @@ namespace WatsonDedupe
             {
             }
 
-            using (SqliteCommand cmd = new SqliteCommand("ROLLBACK;", Conn))
+            using (SQLiteCommand cmd = new SQLiteCommand("ROLLBACK;", Conn))
             {
                 cmd.ExecuteNonQuery();
             }
@@ -752,10 +752,10 @@ namespace WatsonDedupe
             DataTable result;
             string query = "";
 
-            using (SqliteConnection conn = new SqliteConnection("Data Source=" + containerIndexFile + ";Version=3;"))
+            using (SQLiteConnection conn = new SQLiteConnection("Data Source=" + containerIndexFile + ";Version=3;"))
             {
                 conn.Open();
-                using (SqliteCommand cmd = new SqliteCommand("BEGIN IMMEDIATE;", conn))
+                using (SQLiteCommand cmd = new SQLiteCommand("BEGIN IMMEDIATE;", conn))
                 {
                     cmd.ExecuteNonQuery();
                 }
@@ -769,7 +769,7 @@ namespace WatsonDedupe
                 {
                 }
 
-                using (SqliteCommand cmd = new SqliteCommand("ROLLBACK;", conn))
+                using (SQLiteCommand cmd = new SQLiteCommand("ROLLBACK;", conn))
                 {
                     cmd.ExecuteNonQuery();
                 }
@@ -869,19 +869,19 @@ namespace WatsonDedupe
         {
             if (!File.Exists(filename))
             {
-                SqliteConnection.CreateFile(filename);
+                SQLiteConnection.CreateFile(filename);
             }
         }
 
         private void ConnectPoolIndex()
         {
-            Conn = new SqliteConnection(ConnStr);
+            Conn = new SQLiteConnection(ConnStr);
             Conn.Open();
         }
 
         private void CreatePoolIndexConfigTable()
         {
-            using (SqliteCommand cmd = Conn.CreateCommand())
+            using (SQLiteCommand cmd = Conn.CreateCommand())
             {
                 cmd.CommandText =
                     @"CREATE TABLE IF NOT EXISTS dedupe_config " +
@@ -895,7 +895,7 @@ namespace WatsonDedupe
         
         private void CreateContainerFileMapTable()
         {
-            using (SqliteCommand cmd = Conn.CreateCommand())
+            using (SQLiteCommand cmd = Conn.CreateCommand())
             {
                 cmd.CommandText =
                     @"CREATE TABLE IF NOT EXISTS container_file_map " +
@@ -911,10 +911,10 @@ namespace WatsonDedupe
         private void CreateContainerObjectMapTable(string containerIndexFile)
         {
             string connStr = "Data Source=" + containerIndexFile + ";Version=3;";
-            SqliteConnection conn = new SqliteConnection(connStr);
+            SQLiteConnection conn = new SQLiteConnection(connStr);
             conn.Open();
             
-            using (SqliteCommand cmd = conn.CreateCommand())
+            using (SQLiteCommand cmd = conn.CreateCommand())
             {
                 cmd.CommandText =
                     @"CREATE TABLE IF NOT EXISTS object_map " +
@@ -934,7 +934,7 @@ namespace WatsonDedupe
 
         private void CreatePoolIndexChunkRefcountTable()
         {
-            using (SqliteCommand cmd = Conn.CreateCommand())
+            using (SQLiteCommand cmd = Conn.CreateCommand())
             {
                 cmd.CommandText =
                     @"CREATE TABLE IF NOT EXISTS chunk_refcount " +

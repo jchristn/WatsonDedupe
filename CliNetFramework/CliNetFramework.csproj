@@ -55,11 +55,6 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="sqlite3.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\DedupeCore\DedupeCore.csproj">
       <Project>{9b991a09-5cde-4799-acba-2d7713afdb26}</Project>
       <Name>DedupeCore</Name>

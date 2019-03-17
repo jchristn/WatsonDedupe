@@ -5,9 +5,7 @@
 [nuget]:     https://www.nuget.org/packages/WatsonDedupe/
 [nuget-img]: https://badge.fury.io/nu/Object.svg
 
-Self-contained C# library for data deduplication using Sqlite. 
-
-As of v1.0.14, Watson Dedupe is now targeted to .NET Core 2.0 and .NET Framework 4.5.2.
+Self-contained C# library for data deduplication using System.Data.Sqlite and targeted to .NET Core 2.0 and .NET Framework 4.5.2.
 
 ![alt tag](https://github.com/jchristn/WatsonDedupe/blob/master/assets/diagram_half.png)
 
@@ -173,7 +171,3 @@ In other cases, where it is assumed that duplicate data will be found within a f
 Recommended settings for most environments (min, max, shift, boundary):
 - For small file environments, use 256, 4096, 16, and 2
 - For large file environments, use 8192, 65536, 512, and 3
-
-## Running under Mono
-
-This library uses Mono.Data.Sqlite which requires sqlite3.dll.  sqlite3.dll has been manually added to each project with its copy setting set to "always copy".  You may want to use the Mono AOT (ahead of time) compiler prior to using any binary that includes this library on Mono.
