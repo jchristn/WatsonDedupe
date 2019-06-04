@@ -191,10 +191,10 @@ namespace WatsonDedupe
             return ret;
         }
 
-        public static byte[] InitBytes(int count, byte val)
+        public static byte[] InitBytes(long count, byte val)
         {
             byte[] ret = new byte[count];
-            for (int i = 0; i < ret.Length; i++)
+            for (long i = 0; i < ret.Length; i++)
             {
                 ret[i] = val;
             }

@@ -9,6 +9,9 @@ using System.Data.SQLite;
 
 namespace WatsonDedupe
 {
+    /// <summary>
+    /// Sqlite wrapper for DedupeLibrary.
+    /// </summary>
     public class SqliteWrapper
     {
         #region Public-Members
@@ -17,14 +20,14 @@ namespace WatsonDedupe
 
         #region Private-Members
 
-        private string IndexFile;
-        private string ConnStr;
-        private SQLiteConnection Conn;
-        private bool Debug;
+        private string _IndexFile;
+        private string _ConnectionString;
+        private SQLiteConnection _SqliteConnection;
+        private bool _Debug;
 
-        private readonly object ConfigLock;
-        private readonly object ChunkRefcountLock;
-        private readonly object ObjectLock;
+        private readonly object _ConfigLock;
+        private readonly object _ChunkRefcountLock;
+        private readonly object _ObjectLock;
 
         #endregion
 
@@ -39,20 +42,20 @@ namespace WatsonDedupe
         {
             if (String.IsNullOrEmpty(indexFile)) throw new ArgumentNullException(nameof(indexFile));
 
-            IndexFile = indexFile;
+            _IndexFile = indexFile;
 
-            ConnStr = "Data Source=" + IndexFile + ";Version=3;";
+            _ConnectionString = "Data Source=" + _IndexFile + ";Version=3;";
 
-            CreateFile(IndexFile);
+            CreateFile(_IndexFile);
             Connect();
             CreateConfigTable();
             CreateObjectMapTable();
             CreateChunkRefcountTable();
-            Debug = debug;
+            _Debug = debug;
 
-            ConfigLock = new object();
-            ChunkRefcountLock = new object();
-            ObjectLock = new object();
+            _ConfigLock = new object();
+            _ChunkRefcountLock = new object();
+            _ObjectLock = new object();
         }
 
         #endregion
@@ -64,7 +67,7 @@ namespace WatsonDedupe
         /// </summary>
         /// <param name="query">The query.</param>
         /// <param name="result">DataTable containing results.</param>
-        /// <returns>Boolean indicating success or failure.</returns>
+        /// <returns>True if successful.</returns>
         public bool Query(string query, out DataTable result)
         {
             result = new DataTable();
@@ -73,7 +76,7 @@ namespace WatsonDedupe
             {
                 if (String.IsNullOrEmpty(query)) return false;
 
-                using (SQLiteCommand cmd = new SQLiteCommand(query, Conn))
+                using (SQLiteCommand cmd = new SQLiteCommand(query, _SqliteConnection))
                 {
                     using (SQLiteDataReader rdr = cmd.ExecuteReader())
                     {
@@ -88,7 +91,7 @@ namespace WatsonDedupe
             }
             finally
             {
-                if (Debug)
+                if (_Debug)
                 {
                     if (result != null)
                     {
@@ -111,16 +114,16 @@ namespace WatsonDedupe
             key = Common.SanitizeString(key);
             val = Common.SanitizeString(val);
 
-            string keyCheckQuery = "SELECT * FROM dedupe_config WHERE key = '" + key + "'";
+            string keyCheckQuery = "SELECT * FROM DedupeConfig WHERE Key = '" + key + "'";
             DataTable keyCheckResult;
 
-            string keyDeleteQuery = "DELETE FROM dedupe_config WHERE key = '" + key + "'";
+            string keyDeleteQuery = "DELETE FROM DedupeConfig WHERE Key = '" + key + "'";
             DataTable keyDeleteResult;
 
-            string keyInsertQuery = "INSERT INTO dedupe_config (key, val) VALUES ('" + key + "', '" + val + "')";
+            string keyInsertQuery = "INSERT INTO DedupeConfig (Key, Val) VALUES ('" + key + "', '" + val + "')";
             DataTable keyInsertResult;
 
-            lock (ConfigLock)
+            lock (_ConfigLock)
             {
                 if (Query(keyCheckQuery, out keyCheckResult))
                 {
@@ -138,7 +141,7 @@ namespace WatsonDedupe
         /// </summary>
         /// <param name="key">The key.</param>
         /// <param name="val">The value.</param>
-        /// <returns>Boolean indicating success.</returns>
+        /// <returns>True if successful.</returns>
         public bool GetConfigData(string key, out string val)
         {
             val = null;
@@ -146,10 +149,10 @@ namespace WatsonDedupe
 
             key = Common.SanitizeString(key);
 
-            string keyQuery = "SELECT val FROM dedupe_config WHERE key = '" + key + "' LIMIT 1";
+            string keyQuery = "SELECT Val FROM DedupeConfig WHERE Key = '" + key + "' LIMIT 1";
             DataTable result;
 
-            lock (ConfigLock)
+            lock (_ConfigLock)
             {
                 if (Query(keyQuery, out result))
                 {
@@ -157,8 +160,8 @@ namespace WatsonDedupe
                     {
                         foreach (DataRow curr in result.Rows)
                         {
-                            val = curr["val"].ToString();
-                            if (Debug) Console.WriteLine("Returning " + key + ": " + val);
+                            val = curr["Val"].ToString();
+                            if (_Debug) Console.WriteLine("Returning " + key + ": " + val);
                             return true;
                         }
                     }
@@ -179,10 +182,10 @@ namespace WatsonDedupe
 
             objectName = Common.SanitizeString(objectName);
 
-            string query = "SELECT * FROM object_map WHERE object_name = '" + objectName + "' LIMIT 1";
+            string query = "SELECT * FROM ObjectMap WHERE Name = '" + objectName + "' LIMIT 1";
             DataTable result;
             
-            lock (ObjectLock)
+            lock (_ObjectLock)
             {
                 if (Query(query, out result))
                 {
@@ -201,10 +204,10 @@ namespace WatsonDedupe
         {
             keys = new List<string>();
 
-            string query = "SELECT DISTINCT object_name FROM object_map";
+            string query = "SELECT DISTINCT Name FROM ObjectMap";
             DataTable result;
 
-            lock (ObjectLock)
+            lock (_ObjectLock)
             {
                 if (Query(query, out result))
                 {
@@ -212,7 +215,7 @@ namespace WatsonDedupe
                     {
                         foreach (DataRow curr in result.Rows)
                         {
-                            keys.Add(curr["object_name"].ToString());
+                            keys.Add(curr["Name"].ToString());
                         }
                     }
                 }
@@ -225,7 +228,7 @@ namespace WatsonDedupe
         /// <param name="objectName">The name of the object.</param>
         /// <param name="totalLen">The total length of the object.</param>
         /// <param name="chunks">The chunks from the object.</param>
-        /// <returns>Boolean indicating success.</returns>
+        /// <returns>True if successful.</returns>
         public bool AddObjectChunks(string objectName, int totalLen, List<Chunk> chunks)
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
@@ -239,13 +242,13 @@ namespace WatsonDedupe
             DataTable result;
             List<string> addObjectChunksQueries = BatchAddObjectChunksQuery(objectName, totalLen, chunks);
 
-            lock (ObjectLock)
+            lock (_ObjectLock)
             {
                 foreach (string query in addObjectChunksQueries)
                 {
                     if (!Query(query, out result))
                     {
-                        if (Debug) Console.WriteLine("Insert query failed: " + query);
+                        if (_Debug) Console.WriteLine("Insert query failed: " + query);
                         return false;
                     }
                 }
@@ -254,7 +257,7 @@ namespace WatsonDedupe
                 {
                     if (!IncrementChunkRefcount(currChunk.Key, currChunk.Length))
                     {
-                        if (Debug) Console.WriteLine("Unable to increment refcount for chunk: " + currChunk.Key);
+                        if (_Debug) Console.WriteLine("Unable to increment refcount for chunk: " + currChunk.Key);
                         return false;
                     }
                 }
@@ -262,25 +265,24 @@ namespace WatsonDedupe
             
             return true;
         }
-
+         
         /// <summary>
-        /// Retrieve chunks associated with an object.
+        /// Retrieve metadata for a given object.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
-        /// <param name="chunks">The chunks from the object.</param>
-        /// <returns>Boolean indicating success.</returns>
-        public bool GetObjectChunks(string objectName, out List<Chunk> chunks)
+        /// <param name="metadata">Object metadata.</param>
+        /// <returns>True if successful.</returns>
+        public bool GetObjectMetadata(string objectName, out ObjectMetadata metadata)
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
 
             objectName = Common.SanitizeString(objectName);
+            metadata = null;
 
-            chunks = new List<Chunk>();
-
-            string query = "SELECT * FROM object_map WHERE object_name = '" + objectName + "'";
+            string query = "SELECT * FROM ObjectMap WHERE Name = '" + objectName + "'";
             DataTable result;
             bool success = false;
-            lock (ObjectLock)
+            lock (_ObjectLock)
             {
                 success = Query(query, out result);
             }
@@ -288,11 +290,7 @@ namespace WatsonDedupe
             if (result == null || result.Rows.Count < 1) return false;
             if (!success) return false;
 
-            foreach (DataRow curr in result.Rows)
-            {
-                chunks.Add(Chunk.FromDataRow(curr));
-            }
-
+            metadata = ObjectMetadata.FromDataTable(result);
             return true;
         }
 
@@ -308,16 +306,16 @@ namespace WatsonDedupe
 
             objectName = Common.SanitizeString(objectName);
 
-            string selectQuery = "SELECT * FROM object_map WHERE object_name = '" + objectName + "'";
-            string deleteObjectMapQuery = "DELETE FROM object_map WHERE object_name = '" + objectName + "'";
+            string selectQuery = "SELECT * FROM ObjectMap WHERE Name = '" + objectName + "'";
+            string deleteObjectMapQuery = "DELETE FROM ObjectMap WHERE Name = '" + objectName + "'";
             DataTable result;
             bool garbageCollect = false;
 
-            lock (ObjectLock)
+            lock (_ObjectLock)
             {
                 if (!Query(selectQuery, out result))
                 {
-                    if (Debug)
+                    if (_Debug)
                     {
                         Console.WriteLine("Unable to retrieve object map for object: " + objectName);
                     }
@@ -334,7 +332,7 @@ namespace WatsonDedupe
 
                 if (!Query(deleteObjectMapQuery, out result))
                 {
-                    if (Debug)
+                    if (_Debug)
                     {
                         Console.WriteLine("Unable to delete object map entries for object: " + objectName);
                     }
@@ -347,8 +345,8 @@ namespace WatsonDedupe
         /// </summary>
         /// <param name="chunkKey">The chunk key.</param>
         /// <param name="len">The length of the chunk.</param>
-        /// <returns>Boolean indicating success.</returns>
-        public bool IncrementChunkRefcount(string chunkKey, int len)
+        /// <returns>True if successful.</returns>
+        public bool IncrementChunkRefcount(string chunkKey, long len)
         {
             if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
 
@@ -362,10 +360,10 @@ namespace WatsonDedupe
             DataTable updateResult;
             DataTable insertResult;
 
-            selectQuery = "SELECT * FROM chunk_refcount WHERE chunk_key = '" + chunkKey + "'";
-            insertQuery = "INSERT INTO chunk_refcount (chunk_key, chunk_len, ref_count) VALUES ('" + chunkKey + "', '" + len + "', 1)";
+            selectQuery = "SELECT * FROM ChunkRefcount WHERE ChunkKey = '" + chunkKey + "'";
+            insertQuery = "INSERT INTO ChunkRefcount (ChunkKey, ChunkLength, RefCount) VALUES ('" + chunkKey + "', '" + len + "', 1)";
 
-            lock (ChunkRefcountLock)
+            lock (_ChunkRefcountLock)
             {
                 if (Query(selectQuery, out selectResult))
                 {
@@ -384,12 +382,12 @@ namespace WatsonDedupe
                         int currCount = 0;
                         foreach (DataRow curr in selectResult.Rows)
                         {
-                            currCount = Convert.ToInt32(curr["ref_count"]);
+                            currCount = Convert.ToInt32(curr["RefCount"]);
                         }
 
                         currCount++;
 
-                        updateQuery = "UPDATE chunk_refcount SET ref_count = '" + currCount + "' WHERE chunk_key = '" + chunkKey + "'";
+                        updateQuery = "UPDATE ChunkRefcount SET RefCount = '" + currCount + "' WHERE ChunkKey = '" + chunkKey + "'";
                         return Query(updateQuery, out updateResult);
 
                         #endregion
@@ -409,7 +407,7 @@ namespace WatsonDedupe
         /// </summary>
         /// <param name="chunkKey">The chunk key.</param>
         /// <param name="garbageCollect">Boolean indicating if the chunk should be garbage collected.</param>
-        /// <returns>Boolean indicating success.</returns>
+        /// <returns>True if successful.</returns>
         public bool DecrementChunkRefcount(string chunkKey, out bool garbageCollect)
         {
             garbageCollect = false;
@@ -425,10 +423,10 @@ namespace WatsonDedupe
             DataTable updateResult;
             DataTable deleteResult;
 
-            selectQuery = "SELECT * FROM chunk_refcount WHERE chunk_key = '" + chunkKey + "'";
-            deleteQuery = "DELETE FROM chunk_refcount WHERE chunk_key = '" + chunkKey + "'";
+            selectQuery = "SELECT * FROM ChunkRefcount WHERE ChunkKey = '" + chunkKey + "'";
+            deleteQuery = "DELETE FROM ChunkRefcount WHERE ChunkKey = '" + chunkKey + "'";
 
-            lock (ChunkRefcountLock)
+            lock (_ChunkRefcountLock)
             {
                 if (Query(selectQuery, out selectResult))
                 {
@@ -441,7 +439,7 @@ namespace WatsonDedupe
                         int currCount = 0;
                         foreach (DataRow curr in selectResult.Rows)
                         {
-                            currCount = Convert.ToInt32(curr["ref_count"]);
+                            currCount = Convert.ToInt32(curr["RefCount"]);
                         }
 
                         currCount--;
@@ -452,7 +450,7 @@ namespace WatsonDedupe
                         }
                         else
                         {
-                            updateQuery = "UPDATE chunk_refcount SET ref_count = '" + currCount + "' WHERE chunk_key = '" + chunkKey + "'";
+                            updateQuery = "UPDATE ChunkRefcount SET RefCount = '" + currCount + "' WHERE ChunkKey = '" + chunkKey + "'";
                             return Query(updateQuery, out updateResult);
                         }
                     }
@@ -473,7 +471,7 @@ namespace WatsonDedupe
         /// <param name="physicalBytes">The number of bytes consumed by chunks of data, i.e. the deduplication set size.</param>
         /// <param name="dedupeRatioX">Deduplication ratio represented as a multiplier.</param>
         /// <param name="dedupeRatioPercent">Deduplication ratio represented as a percentage.</param>
-        /// <returns>Boolean indicating success.</returns>
+        /// <returns>True if successful.</returns>
         public bool IndexStats(out int numObjects, out int numChunks, out long logicalBytes, out long physicalBytes, out decimal dedupeRatioX, out decimal dedupeRatioPercent)
         {
             numObjects = 0;
@@ -486,21 +484,21 @@ namespace WatsonDedupe
             string query =
                 "SELECT * FROM " +
                 "(" +
-                "  (SELECT COUNT(*) AS num_objects FROM " + 
-                "    (SELECT DISTINCT(object_name) FROM object_map) object_names " +
-                "  ) num_objects, " +
-                "  (SELECT COUNT(*) AS num_chunks FROM chunk_refcount) num_chunks, " +
-                "  (SELECT SUM(chunk_len * ref_count) AS logical_bytes FROM chunk_refcount) logical_bytes, " +
-                "  (SELECT SUM(chunk_len) AS physical_bytes FROM chunk_refcount) physical_bytes " +
+                "  (SELECT COUNT(*) AS NumObjects FROM " + 
+                "    (SELECT DISTINCT(Name) FROM ObjectMap) Names " +
+                "  ) NumObjects, " +
+                "  (SELECT COUNT(*) AS NumChunks FROM ChunkRefcount) NumChunks, " +
+                "  (SELECT SUM(ChunkLength * RefCount) AS LogicalBytes FROM ChunkRefcount) LogicalBytes, " +
+                "  (SELECT SUM(ChunkLength) AS PhysicalBytes FROM ChunkRefcount) PhysicalBytes " +
                 ")";
 
             DataTable result;
 
-            lock (ChunkRefcountLock)
+            lock (_ChunkRefcountLock)
             {
                 if (!Query(query, out result))
                 {
-                    if (Debug) Console.WriteLine("Unable to retrieve index stats");
+                    if (_Debug) Console.WriteLine("Unable to retrieve index stats");
                     return false;
                 }
 
@@ -509,10 +507,10 @@ namespace WatsonDedupe
 
             foreach (DataRow curr in result.Rows)
             {
-                if (curr["num_objects"] != DBNull.Value) numObjects = Convert.ToInt32(curr["num_objects"]);
-                if (curr["num_chunks"] != DBNull.Value) numChunks = Convert.ToInt32(curr["num_chunks"]);
-                if (curr["logical_bytes"] != DBNull.Value) logicalBytes = Convert.ToInt32(curr["logical_bytes"]);
-                if (curr["physical_bytes"] != DBNull.Value) physicalBytes = Convert.ToInt32(curr["physical_bytes"]);
+                if (curr["NumObjects"] != DBNull.Value) numObjects = Convert.ToInt32(curr["NumObjects"]);
+                if (curr["NumChunks"] != DBNull.Value) numChunks = Convert.ToInt32(curr["NumChunks"]);
+                if (curr["LogicalBytes"] != DBNull.Value) logicalBytes = Convert.ToInt32(curr["LogicalBytes"]);
+                if (curr["PhysicalBytes"] != DBNull.Value) physicalBytes = Convert.ToInt32(curr["PhysicalBytes"]);
 
                 if (physicalBytes > 0 && logicalBytes > 0)
                 {
@@ -528,27 +526,27 @@ namespace WatsonDedupe
         /// Copies the index database to another file.
         /// </summary>
         /// <param name="destination">The destination file.</param>
-        /// <returns>Boolean indicating success.</returns>
+        /// <returns>True if successful.</returns>
         public bool BackupIndex(string destination)
         {
             if (String.IsNullOrEmpty(destination)) throw new ArgumentNullException(nameof(destination));
             
             bool copySuccess = false;
-            using (SQLiteCommand cmd = new SQLiteCommand("BEGIN IMMEDIATE;", Conn))
+            using (SQLiteCommand cmd = new SQLiteCommand("BEGIN IMMEDIATE;", _SqliteConnection))
             {
                 cmd.ExecuteNonQuery();
             }
 
             try
             {
-                File.Copy(IndexFile, destination, true);
+                File.Copy(_IndexFile, destination, true);
                 copySuccess = true;
             }
             catch (Exception)
             {
             }
 
-            using (SQLiteCommand cmd = new SQLiteCommand("ROLLBACK;", Conn))
+            using (SQLiteCommand cmd = new SQLiteCommand("ROLLBACK;", _SqliteConnection))
             {
                 cmd.ExecuteNonQuery();
             }
@@ -570,19 +568,19 @@ namespace WatsonDedupe
 
         private void Connect()
         {
-            Conn = new SQLiteConnection(ConnStr);
-            Conn.Open();
+            _SqliteConnection = new SQLiteConnection(_ConnectionString);
+            _SqliteConnection.Open();
         }
 
         private void CreateConfigTable()
         {
-            using (SQLiteCommand cmd = Conn.CreateCommand())
+            using (SQLiteCommand cmd = _SqliteConnection.CreateCommand())
             {
                 cmd.CommandText =
-                    @"CREATE TABLE IF NOT EXISTS dedupe_config " +
+                    @"CREATE TABLE IF NOT EXISTS DedupeConfig " +
                     "(" +
-                    " key VARCHAR(128), " +
-                    " val VARCHAR(1024) " +
+                    " Key VARCHAR(128), " +
+                    " Val VARCHAR(1024) " +
                     ")";
                 cmd.ExecuteNonQuery();
             }
@@ -590,34 +588,35 @@ namespace WatsonDedupe
         
         private void CreateObjectMapTable()
         {
-            using (SQLiteCommand cmd = Conn.CreateCommand())
+            using (SQLiteCommand cmd = _SqliteConnection.CreateCommand())
             {
                 cmd.CommandText =
-                    @"CREATE TABLE IF NOT EXISTS object_map " +
+                    @"CREATE TABLE IF NOT EXISTS ObjectMap " +
                     "(" +
-                    " object_map_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    " object_name VARCHAR(1024), " +
-                    " object_len INTEGER, " +
-                    " chunk_key VARCHAR(128), " +
-                    " chunk_len INTEGER, " +
-                    " chunk_position INTEGER, " +
-                    " chunk_address INTEGER " +
+                    " ObjectMapId INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    " Name VARCHAR(1024), " +
+                    " ContentLength INTEGER, " +
+                    " ChunkKey VARCHAR(128), " +
+                    " ChunkLength INTEGER, " +
+                    " ChunkPosition INTEGER, " +
+                    " ChunkAddress INTEGER " +
                     ")";
+                 
                 cmd.ExecuteNonQuery();
             }
         }
 
         private void CreateChunkRefcountTable()
         {
-            using (SQLiteCommand cmd = Conn.CreateCommand())
+            using (SQLiteCommand cmd = _SqliteConnection.CreateCommand())
             {
                 cmd.CommandText =
-                    @"CREATE TABLE IF NOT EXISTS chunk_refcount " +
+                    @"CREATE TABLE IF NOT EXISTS ChunkRefcount " +
                     "(" +
-                    " chunk_refcount_id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    " chunk_key VARCHAR(128), " +
-                    " chunk_len INTEGER, " +
-                    " ref_count INTEGER" +
+                    " ChunkRefcountId INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    " ChunkKey VARCHAR(128), " +
+                    " ChunkLength INTEGER, " +
+                    " RefCount INTEGER" +
                     ")";
                 cmd.ExecuteNonQuery();
             }
@@ -637,7 +636,7 @@ namespace WatsonDedupe
 
             while (moreRecords)
             {
-                string query = "INSERT INTO object_map (object_name, object_len, chunk_key, chunk_len, chunk_position, chunk_address) VALUES ";
+                string query = "INSERT INTO ObjectMap (Name, ContentLength, ChunkKey, ChunkLength, ChunkPosition, ChunkAddress) VALUES ";
 
                 remainingRecords = totalRecords - currPosition;
                 if (remainingRecords > batchMaxSize)

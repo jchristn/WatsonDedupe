@@ -39,6 +39,7 @@ namespace Cli
         static byte[] RequestData;
         static List<Chunk> Chunks;
         static List<string> Keys;
+        static ObjectMetadata Metadata;
 
         static void Main(string[] args)
         {
@@ -123,7 +124,7 @@ namespace Cli
 
                 #region Verify-Values
 
-                List<string> validCommands = new List<string>() { "create", "stats", "store", "retrieve", "cdelete", "odelete", "clist", "olist", "cexists", "oexists" };
+                List<string> validCommands = new List<string>() { "create", "stats", "store", "retrieve", "cdelete", "odelete", "ometadata", "clist", "olist", "cexists", "oexists" };
                 if (!validCommands.Contains(Command))
                 {
                     Usage("Invalid command: " + Command);
@@ -292,6 +293,32 @@ namespace Cli
                             else
                             {
                                 Console.WriteLine("Success");
+                            }
+                        }
+                        return;
+
+                    case "ometadata":
+                        if (String.IsNullOrEmpty(ObjectKey))
+                        {
+                            Usage("Object key must be supplied");
+                        }
+                        else if (String.IsNullOrEmpty(ContainerName))
+                        {
+                            Usage("Container name must be supplied");
+                        }
+                        else if (String.IsNullOrEmpty(ContainerIndexFile))
+                        {
+                            Usage("Container index file must be supplied");
+                        }
+                        else
+                        {
+                            if (!Dedupe.RetrieveObjectMetadata(ObjectKey, ContainerName, ContainerIndexFile, out Metadata))
+                            {
+                                Console.WriteLine("Failed");
+                            }
+                            else
+                            {
+                                Console.WriteLine(Metadata.ToString());
                             }
                         }
                         return;
@@ -513,6 +540,7 @@ namespace Cli
             Console.WriteLine("  store               Write an object to a container");
             Console.WriteLine("  retrieve            Retrieve an object from a container");
             Console.WriteLine("  odelete             Delete an object from a container");
+            Console.WriteLine("  ometadata           Retrieve metadata about an object");
             Console.WriteLine("  cdelete             Delete a container from the index");
             Console.WriteLine("  olist               List the objects in a container");
             Console.WriteLine("  clist               List the containers in the index");

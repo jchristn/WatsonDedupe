@@ -37,6 +37,7 @@ namespace Cli
         static byte[] RequestData;
         static List<Chunk> Chunks;
         static List<string> Keys;
+        static ObjectMetadata Metadata;
 
         static void Main(string[] args)
         {
@@ -113,7 +114,7 @@ namespace Cli
 
                 #region Verify-Values
 
-                List<string> validCommands = new List<string>() { "create", "stats", "store", "retrieve", "delete", "list", "exists" };
+                List<string> validCommands = new List<string>() { "create", "stats", "store", "retrieve", "delete", "list", "exists", "metadata" };
                 if (!validCommands.Contains(Command))
                 {
                     Usage("Invalid command: " + Command);
@@ -239,6 +240,24 @@ namespace Cli
                             else
                             {
                                 Console.WriteLine("Success");
+                            }
+                        }
+                        return;
+
+                    case "metadata":
+                        if (String.IsNullOrEmpty(ObjectKey))
+                        {
+                            Usage("Object key must be supplied");
+                        }
+                        else
+                        {
+                            if (!Dedupe.RetrieveObjectMetadata(ObjectKey, out Metadata))
+                            {
+                                Console.WriteLine("Failed");
+                            }
+                            else
+                            {
+                                Console.WriteLine(Metadata.ToString());
                             }
                         }
                         return;
@@ -418,6 +437,7 @@ namespace Cli
             Console.WriteLine("  stats               Gather deduplication stats from the index");
             Console.WriteLine("  store               Write an object to the index");
             Console.WriteLine("  retrieve            Retrieve an object from the index");
+            Console.WriteLine("  metadata            Retrieve metadata about an object");
             Console.WriteLine("  delete              Delete an object from the index");
             Console.WriteLine("  list                List the objects in the index");
             Console.WriteLine("  exists              Check if an object exists in the index");

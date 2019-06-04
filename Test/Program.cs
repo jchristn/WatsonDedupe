@@ -23,6 +23,7 @@ namespace Test
             byte[] data;
             List<Chunk> chunks;
             List<string> keys;
+            ObjectMetadata md;
 
             int numObjects;
             int numChunks;
@@ -48,6 +49,7 @@ namespace Test
                         Console.WriteLine("  store      store an object");
                         Console.WriteLine("  retrieve   retrieve an object");
                         Console.WriteLine("  delete     delete an object");
+                        Console.WriteLine("  metadata   retrieve object metadata");
                         Console.WriteLine("  list       list objects in the index");
                         Console.WriteLine("  exists     check if object exists in the index");
                         Console.WriteLine("  stats      list index stats");
@@ -112,6 +114,19 @@ namespace Test
                         if (Dedupe.DeleteObject(key))
                         {
                             Console.WriteLine("Success");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Failed");
+                        }
+                        break;
+
+                    case "metadata":
+                        key = Common.InputString("Object key:", null, false);
+                        if (Dedupe.RetrieveObjectMetadata(key, out md))
+                        {
+                            Console.WriteLine("Success");
+                            Console.WriteLine(md.ToString());
                         }
                         else
                         {

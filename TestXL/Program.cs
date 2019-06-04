@@ -25,6 +25,7 @@ namespace Test
             byte[] data;
             List<Chunk> chunks;
             List<string> keys;
+            ObjectMetadata md;
 
             int numContainers;
             int numChunks;
@@ -51,6 +52,7 @@ namespace Test
                         Console.WriteLine("  retrieve   retrieve an object from a container");
                         Console.WriteLine("  cdelete    delete a container from the index");
                         Console.WriteLine("  odelete    delete an object in a container");
+                        Console.WriteLine("  ometadata  retrieve metadata about an object");
                         Console.WriteLine("  clist      list containers in the index");
                         Console.WriteLine("  olist      list objects in a container");
                         Console.WriteLine("  cexists    check if container exists in the index");
@@ -129,6 +131,21 @@ namespace Test
                         if (Dedupe.DeleteObject(key, containerName, containerIndexFile))
                         {
                             Console.WriteLine("Success");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Failed");
+                        }
+                        break;
+                         
+                    case "ometadata":
+                        key = Common.InputString("Object key:", null, false);
+                        containerName = Common.InputString("Container name:", null, false);
+                        containerIndexFile = Common.InputString("Container index file:", null, false);
+                        if (Dedupe.RetrieveObjectMetadata(key, containerName, containerIndexFile, out md))
+                        {
+                            Console.WriteLine("Success");
+                            Console.WriteLine(md.ToString());
                         }
                         else
                         {

@@ -22,17 +22,17 @@ namespace WatsonDedupe
         /// <summary>
         /// The length of the chunk data.
         /// </summary>
-        public int Length { get; set; }
+        public long Length { get; set; }
 
         /// <summary>
         /// The order of the chunk within the current object.
         /// </summary>
-        public int Position { get; set; }
+        public long Position { get; set; }
 
         /// <summary>
         /// The address of the chunk within the current object.
         /// </summary>
-        public int Address { get; set; }
+        public long Address { get; set; }
 
         /// <summary>
         /// The byte data of the chunk.
@@ -62,12 +62,13 @@ namespace WatsonDedupe
         /// <param name="len">The length of the chunk data.</param>
         /// <param name="pos">The order of the chunk within the object.</param>
         /// <param name="address">The address of the chunk within the current object.</param>
-        public Chunk(string key, int len, int pos, int address)
+        public Chunk(string key, long len, long pos, long address)
         {
             if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(key);
             if (len < 1) throw new ArgumentOutOfRangeException(nameof(len));
             if (pos < 0) throw new ArgumentOutOfRangeException(nameof(pos));
             if (address < 0) throw new ArgumentOutOfRangeException(nameof(address));
+
             Key = Common.SanitizeString(key);
             Length = len;
             Position = pos;
@@ -82,7 +83,7 @@ namespace WatsonDedupe
         /// <param name="pos">The order of the chunk within the object.</param>
         /// <param name="address">The address of the chunk within the current object.</param>
         /// <param name="value">The byte data of the chunk.</param>
-        public Chunk(string key, int len, int pos, int address, byte[] value)
+        public Chunk(string key, long len, long pos, long address, byte[] value)
         {
             if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(key);
             if (len < 1) throw new ArgumentOutOfRangeException(nameof(len));
@@ -107,10 +108,10 @@ namespace WatsonDedupe
             if (row == null) throw new ArgumentNullException(nameof(row));
 
             Chunk c = new Chunk(
-                row["chunk_key"].ToString(),
-                Convert.ToInt32(row["chunk_len"]),
-                Convert.ToInt32(row["chunk_position"]),
-                Convert.ToInt32(row["chunk_address"])
+                row["ChunkKey"].ToString(),
+                Convert.ToInt64(row["ChunkLength"]),
+                Convert.ToInt64(row["ChunkPosition"]),
+                Convert.ToInt64(row["ChunkAddress"])
                 );
 
             return c;

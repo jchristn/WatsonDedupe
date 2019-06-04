@@ -28,18 +28,18 @@ namespace WatsonDedupe
 
         #region Private-Members
 
-        private string IndexFile;
-        private int MinChunkSize;
-        private int MaxChunkSize;
-        private int ShiftCount;
-        private int BoundaryCheckBytes;
-        private readonly object ChunkLock;
+        private string _IndexFile;
+        private int _MinChunkSize;
+        private int _MaxChunkSize;
+        private int _ShiftCount;
+        private int _BoundaryCheckBytes;
+        private readonly object _ChunkLock;
 
-        private SqliteWrapper Sql;
+        private SqliteWrapper _Sqlite;
 
-        private Func<Chunk, bool> WriteChunk;
-        private Func<string, byte[]> ReadChunk;
-        private Func<string, bool> DeleteChunk;
+        private Func<Chunk, bool> _WriteChunk;
+        private Func<string, byte[]> _ReadChunk;
+        private Func<string, bool> _DeleteChunk;
 
         #endregion
 
@@ -62,15 +62,15 @@ namespace WatsonDedupe
             if (readChunkMethod == null) throw new ArgumentNullException(nameof(readChunkMethod));
             if (deleteChunkMethod == null) throw new ArgumentNullException(nameof(deleteChunkMethod));
 
-            IndexFile = Common.SanitizeString(indexFile);
-            WriteChunk = writeChunkMethod;
-            ReadChunk = readChunkMethod;
-            DeleteChunk = deleteChunkMethod;
+            _IndexFile = Common.SanitizeString(indexFile);
+            _WriteChunk = writeChunkMethod;
+            _ReadChunk = readChunkMethod;
+            _DeleteChunk = deleteChunkMethod;
             DebugDedupe = debugDedupe;
             DebugSql = debugSql;
-            ChunkLock = new object();
+            _ChunkLock = new object();
 
-            Sql = new SqliteWrapper(IndexFile, DebugSql);
+            _Sqlite = new SqliteWrapper(_IndexFile, DebugSql);
 
             InitFromExistingIndex();
         }
@@ -116,19 +116,19 @@ namespace WatsonDedupe
 
             if (File.Exists(indexFile)) throw new IOException("Index file already exists.");
 
-            IndexFile = Common.SanitizeString(indexFile);
-            MinChunkSize = minChunkSize;
-            MaxChunkSize = maxChunkSize;
-            ShiftCount = shiftCount;
-            BoundaryCheckBytes = boundaryCheckBytes;
-            WriteChunk = writeChunkMethod;
-            ReadChunk = readChunkMethod;
-            DeleteChunk = deleteChunkMethod;
+            _IndexFile = Common.SanitizeString(indexFile);
+            _MinChunkSize = minChunkSize;
+            _MaxChunkSize = maxChunkSize;
+            _ShiftCount = shiftCount;
+            _BoundaryCheckBytes = boundaryCheckBytes;
+            _WriteChunk = writeChunkMethod;
+            _ReadChunk = readChunkMethod;
+            _DeleteChunk = deleteChunkMethod;
             DebugDedupe = debugDedupe;
             DebugSql = debugSql;
-            ChunkLock = new object();
+            _ChunkLock = new object();
 
-            Sql = new SqliteWrapper(IndexFile, DebugSql);
+            _Sqlite = new SqliteWrapper(_IndexFile, DebugSql);
 
             InitNewIndex();
         }
@@ -143,7 +143,7 @@ namespace WatsonDedupe
         /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
         /// <param name="data">The byte data for the object.</param>
         /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-        /// <returns>Boolean indicating success or failure.</returns>
+        /// <returns>True if successful.</returns>
         public bool StoreObject(string objectName, byte[] data, out List<Chunk> chunks)
         {
             #region Initialize
@@ -153,7 +153,7 @@ namespace WatsonDedupe
             if (data == null || data.Length < 1) return false;
             objectName = Common.SanitizeString(objectName);
 
-            if (Sql.ObjectExists(objectName))
+            if (_Sqlite.ObjectExists(objectName))
             {
                 if (DebugDedupe) Console.WriteLine("Object already exists");
                 return false;
@@ -179,9 +179,9 @@ namespace WatsonDedupe
 
             #region Add-Object-Map
 
-            lock (ChunkLock)
+            lock (_ChunkLock)
             {
-                if (!Sql.AddObjectChunks(objectName, data.Length, chunks))
+                if (!_Sqlite.AddObjectChunks(objectName, data.Length, chunks))
                 {
                     if (DebugDedupe) Console.WriteLine("Unable to add object");
                     return false;
@@ -190,7 +190,7 @@ namespace WatsonDedupe
                 bool storageSuccess = true;
                 foreach (Chunk curr in chunks)
                 {
-                    if (!WriteChunk(curr))
+                    if (!_WriteChunk(curr))
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
                         storageSuccess = false;
@@ -201,13 +201,13 @@ namespace WatsonDedupe
                 if (!storageSuccess)
                 {
                     List<string> garbageCollectKeys;
-                    Sql.DeleteObjectChunks(objectName, out garbageCollectKeys);
+                    _Sqlite.DeleteObjectChunks(objectName, out garbageCollectKeys);
 
                     if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
                     {
                         foreach (string key in garbageCollectKeys)
                         {
-                            if (!DeleteChunk(key))
+                            if (!_DeleteChunk(key))
                             {
                                 if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                             }
@@ -228,7 +228,7 @@ namespace WatsonDedupe
         /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
         /// <param name="data">The byte data for the object.</param>
         /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-        /// <returns>Boolean indicating success or failure.</returns>
+        /// <returns>True if successful.</returns>
         public bool StoreOrReplaceObject(string objectName, byte[] data, out List<Chunk> chunks)
         {
             #region Initialize
@@ -238,7 +238,7 @@ namespace WatsonDedupe
             if (data == null || data.Length < 1) return false;
             objectName = Common.SanitizeString(objectName);
 
-            if (Sql.ObjectExists(objectName))
+            if (_Sqlite.ObjectExists(objectName))
             {
                 if (DebugDedupe) Console.WriteLine("Object already exists, deleting");
                 if (!DeleteObject(objectName))
@@ -272,9 +272,9 @@ namespace WatsonDedupe
 
             #region Add-Object-Map
 
-            lock (ChunkLock)
+            lock (_ChunkLock)
             {
-                if (!Sql.AddObjectChunks(objectName, data.Length, chunks))
+                if (!_Sqlite.AddObjectChunks(objectName, data.Length, chunks))
                 {
                     if (DebugDedupe) Console.WriteLine("Unable to add object");
                     return false;
@@ -283,7 +283,7 @@ namespace WatsonDedupe
                 bool storageSuccess = true;
                 foreach (Chunk curr in chunks)
                 {
-                    if (!WriteChunk(curr))
+                    if (!_WriteChunk(curr))
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
                         storageSuccess = false;
@@ -294,13 +294,13 @@ namespace WatsonDedupe
                 if (!storageSuccess)
                 {
                     List<string> garbageCollectKeys;
-                    Sql.DeleteObjectChunks(objectName, out garbageCollectKeys);
+                    _Sqlite.DeleteObjectChunks(objectName, out garbageCollectKeys);
 
                     if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
                     {
                         foreach (string key in garbageCollectKeys)
                         {
-                            if (!DeleteChunk(key))
+                            if (!_DeleteChunk(key))
                             {
                                 if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                             }
@@ -316,51 +316,63 @@ namespace WatsonDedupe
         }
 
         /// <summary>
+        /// Retrieve metadata about an object from the deduplication index.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="md">Object metadata.</param>
+        /// <returns>True if successful.</returns>
+        public bool RetrieveObjectMetadata(string objectName, out ObjectMetadata md)
+        {
+            md = null;
+            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            objectName = Common.SanitizeString(objectName);
+
+            lock (_ChunkLock)
+            {
+                return _Sqlite.GetObjectMetadata(objectName, out md);
+            }
+        }
+
+        /// <summary>
         /// Retrieve an object from the deduplication index.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
         /// <param name="data">The byte data from the object.</param>
-        /// <returns>Boolean indicating success or failure.</returns>
+        /// <returns>True if successful.</returns>
         public bool RetrieveObject(string objectName, out byte[] data)
         {
             data = null;
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             objectName = Common.SanitizeString(objectName);
 
-            List<Chunk> chunks = new List<Chunk>();
+            ObjectMetadata md = null;
 
-            lock (ChunkLock)
+            lock (_ChunkLock)
             {
-                if (!Sql.GetObjectChunks(objectName, out chunks))
+                if (!_Sqlite.GetObjectMetadata(objectName, out md))
                 {
-                    if (DebugDedupe) Console.WriteLine("Unable to retrieve object chunks");
+                    if (DebugDedupe) Console.WriteLine("Unable to retrieve object metadata");
                     return false;
                 }
 
-                if (chunks == null || chunks.Count < 1)
+                if (md.Chunks == null || md.Chunks.Count < 1)
                 {
                     if (DebugDedupe) Console.WriteLine("No chunks returned");
                     return false;
                 }
+                  
+                data = Common.InitBytes(md.ContentLength, 0x00);
 
-                int totalSize = 0;
-                foreach (Chunk curr in chunks)
+                foreach (Chunk curr in md.Chunks)
                 {
-                    totalSize += curr.Length;
-                }
-
-                data = Common.InitBytes(totalSize, 0x00);
-
-                foreach (Chunk curr in chunks)
-                {
-                    byte[] chunkData = ReadChunk(curr.Key);
+                    byte[] chunkData = _ReadChunk(curr.Key);
                     if (chunkData == null || chunkData.Length < 1)
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to read chunk " + curr.Key);
                         return false;
                     }
 
-                    Buffer.BlockCopy(chunkData, 0, data, curr.Address, chunkData.Length);
+                    Buffer.BlockCopy(chunkData, 0, data, (int)curr.Address, chunkData.Length);
                 }
             }
 
@@ -371,7 +383,7 @@ namespace WatsonDedupe
         /// Delete an object stored in the deduplication index.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
-        /// <returns>Boolean indicating success or failure.</returns>
+        /// <returns>True if successful.</returns>
         public bool DeleteObject(string objectName)
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
@@ -379,14 +391,14 @@ namespace WatsonDedupe
 
             List<string> garbageCollectChunks = null;
 
-            lock (ChunkLock)
+            lock (_ChunkLock)
             {
-                Sql.DeleteObjectChunks(objectName, out garbageCollectChunks);
+                _Sqlite.DeleteObjectChunks(objectName, out garbageCollectChunks);
                 if (garbageCollectChunks != null && garbageCollectChunks.Count > 0)
                 {
                     foreach (string key in garbageCollectChunks)
                     {
-                        if (!DeleteChunk(key))
+                        if (!_DeleteChunk(key))
                         {
                             if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                         }
@@ -403,7 +415,7 @@ namespace WatsonDedupe
         /// <param name="keys">List of object names.</param>
         public void ListObjects(out List<string> keys)
         {
-            Sql.ListObjects(out keys);
+            _Sqlite.ListObjects(out keys);
             return;
         }
 
@@ -414,7 +426,7 @@ namespace WatsonDedupe
         /// <returns>Boolean indicating if the object exists.</returns>
         public bool ObjectExists(string objectName)
         {
-            return Sql.ObjectExists(objectName);
+            return _Sqlite.ObjectExists(objectName);
         }
 
         /// <summary>
@@ -426,20 +438,20 @@ namespace WatsonDedupe
         /// <param name="physicalBytes">The number of bytes consumed by chunks of data, i.e. the deduplication set size.</param>
         /// <param name="dedupeRatioX">Deduplication ratio represented as a multiplier.</param>
         /// <param name="dedupeRatioPercent">Deduplication ratio represented as a percentage.</param>
-        /// <returns>Boolean indicating success or failure.</returns>
+        /// <returns>True if successful.</returns>
         public bool IndexStats(out int numObjects, out int numChunks, out long logicalBytes, out long physicalBytes, out decimal dedupeRatioX, out decimal dedupeRatioPercent)
         {
-            return Sql.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent);
+            return _Sqlite.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent);
         }
 
         /// <summary>
         /// Copies the index database to another file.
         /// </summary>
         /// <param name="destination">The destination file.</param>
-        /// <returns>Boolean indicating success.</returns>
+        /// <returns>True if successful.</returns>
         public bool BackupIndex(string destination)
         {
-            return Sql.BackupIndex(destination);
+            return _Sqlite.BackupIndex(destination);
         }
 
         #endregion
@@ -449,54 +461,54 @@ namespace WatsonDedupe
         private void InitFromExistingIndex()
         {
             string tempVal;
-            if (!Sql.GetConfigData("min_chunk_size", out tempVal))
+            if (!_Sqlite.GetConfigData("min_chunk_size", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'min_chunk_size'.");
             }
             else
             {
                 if (DebugDedupe) Console.WriteLine("MinChunkSize set to " + tempVal);
-                MinChunkSize = Convert.ToInt32(tempVal);
+                _MinChunkSize = Convert.ToInt32(tempVal);
             }
 
-            if (!Sql.GetConfigData("max_chunk_size", out tempVal))
+            if (!_Sqlite.GetConfigData("max_chunk_size", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'max_chunk_size'.");
             }
             else
             {
                 if (DebugDedupe) Console.WriteLine("MaxChunkSize set to " + tempVal);
-                MaxChunkSize = Convert.ToInt32(tempVal);
+                _MaxChunkSize = Convert.ToInt32(tempVal);
             }
 
-            if (!Sql.GetConfigData("shift_count", out tempVal))
+            if (!_Sqlite.GetConfigData("shift_count", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'shift_count'.");
             }
             else
             {
                 if (DebugDedupe) Console.WriteLine("ShiftCount set to " + tempVal);
-                ShiftCount = Convert.ToInt32(tempVal);
+                _ShiftCount = Convert.ToInt32(tempVal);
             }
 
-            if (!Sql.GetConfigData("boundary_check_bytes", out tempVal))
+            if (!_Sqlite.GetConfigData("boundary_check_bytes", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'boundary_check_bytes'.");
             }
             else
             {
                 if (DebugDedupe) Console.WriteLine("BoundaryCheckBytes set to " + tempVal);
-                BoundaryCheckBytes = Convert.ToInt32(tempVal);
+                _BoundaryCheckBytes = Convert.ToInt32(tempVal);
             }
         }
 
         private void InitNewIndex()
         {
-            Sql.AddConfigData("min_chunk_size", MinChunkSize.ToString());
-            Sql.AddConfigData("max_chunk_size", MaxChunkSize.ToString());
-            Sql.AddConfigData("shift_count", ShiftCount.ToString());
-            Sql.AddConfigData("boundary_check_bytes", BoundaryCheckBytes.ToString());
-            Sql.AddConfigData("index_per_object", "false");
+            _Sqlite.AddConfigData("min_chunk_size", _MinChunkSize.ToString());
+            _Sqlite.AddConfigData("max_chunk_size", _MaxChunkSize.ToString());
+            _Sqlite.AddConfigData("shift_count", _ShiftCount.ToString());
+            _Sqlite.AddConfigData("boundary_check_bytes", _BoundaryCheckBytes.ToString());
+            _Sqlite.AddConfigData("index_per_object", "false");
         }
 
         private bool ChunkObject(byte[] data, out List<Chunk> chunks)
@@ -508,7 +520,7 @@ namespace WatsonDedupe
 
             if (data == null || data.Length < 1) return false;
 
-            if (data.Length <= MinChunkSize)
+            if (data.Length <= _MinChunkSize)
             {
                 c = new Chunk(
                     Common.BytesToBase64(Common.Sha256(data)),
@@ -522,14 +534,14 @@ namespace WatsonDedupe
 
             int currPosition = 0;
             int chunkStart = 0;
-            byte[] window = new byte[MinChunkSize];
+            byte[] window = new byte[_MinChunkSize];
 
             #endregion
 
             #region Setup-First-Window
 
-            Buffer.BlockCopy(data, 0, window, 0, MinChunkSize);
-            currPosition = MinChunkSize;
+            Buffer.BlockCopy(data, 0, window, 0, _MinChunkSize);
+            currPosition = _MinChunkSize;
 
             #endregion
 
@@ -547,7 +559,7 @@ namespace WatsonDedupe
                     if (currPosition % 1000 == 0) Console.Write("Chunk start " + chunkStart + " window end " + currPosition + " hash: " + Common.BytesToBase64(md5Hash) + "\r");
                 }
 
-                if (Common.IsZeroBytes(md5Hash, BoundaryCheckBytes))
+                if (Common.IsZeroBytes(md5Hash, _BoundaryCheckBytes))
                 {
                     #region New-Chunk-Identified
 
@@ -576,13 +588,13 @@ namespace WatsonDedupe
                     chunkStart = currPosition;
 
                     // initialize new window
-                    if (data.Length - currPosition >= MinChunkSize)
+                    if (data.Length - currPosition >= _MinChunkSize)
                     {
                         #region Min-Size-or-More-Remaining
 
-                        window = new byte[MinChunkSize];
-                        Buffer.BlockCopy(data, currPosition, window, 0, MinChunkSize);
-                        currPosition += MinChunkSize;
+                        window = new byte[_MinChunkSize];
+                        Buffer.BlockCopy(data, currPosition, window, 0, _MinChunkSize);
+                        currPosition += _MinChunkSize;
                         continue;
 
                         #endregion
@@ -626,7 +638,7 @@ namespace WatsonDedupe
                 {
                     #region Not-a-Chunk-Boundary
 
-                    if ((currPosition - chunkStart) >= MaxChunkSize)
+                    if ((currPosition - chunkStart) >= _MaxChunkSize)
                     {
                         #region Max-Size-Reached
 
@@ -649,13 +661,13 @@ namespace WatsonDedupe
                         chunkStart = currPosition;
 
                         // initialize new window
-                        if (data.Length - currPosition >= MinChunkSize)
+                        if (data.Length - currPosition >= _MinChunkSize)
                         {
                             #region Min-Size-or-More-Remaining
 
-                            window = new byte[MinChunkSize];
-                            Buffer.BlockCopy(data, currPosition, window, 0, MinChunkSize);
-                            currPosition += MinChunkSize;
+                            window = new byte[_MinChunkSize];
+                            Buffer.BlockCopy(data, currPosition, window, 0, _MinChunkSize);
+                            currPosition += _MinChunkSize;
                             continue;
 
                             #endregion
@@ -695,10 +707,10 @@ namespace WatsonDedupe
                         #region Shift-Window
 
                         // shift the window
-                        window = Common.ShiftLeft(window, ShiftCount, 0x00);
+                        window = Common.ShiftLeft(window, _ShiftCount, 0x00);
 
                         // add the next set of bytes to the window
-                        if (currPosition + ShiftCount > data.Length)
+                        if (currPosition + _ShiftCount > data.Length)
                         {
                             //
                             // set current position to the end and break
@@ -708,11 +720,11 @@ namespace WatsonDedupe
                         }
                         else
                         {
-                            Buffer.BlockCopy(data, currPosition, window, (MinChunkSize - ShiftCount), ShiftCount);
+                            Buffer.BlockCopy(data, currPosition, window, (_MinChunkSize - _ShiftCount), _ShiftCount);
                         }
 
                         // increment the current position
-                        currPosition = currPosition + ShiftCount;
+                        currPosition = currPosition + _ShiftCount;
 
                         #endregion
                     }
