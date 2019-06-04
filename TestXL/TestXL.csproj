@@ -6,7 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\DedupeCore\DedupeCore.csproj" />
     <ProjectReference Include="..\DedupeLibrary\DedupeLibrary.csproj" />
   </ItemGroup>
 

@@ -12,7 +12,7 @@ namespace WatsonDedupe
     /// <summary>
     /// Sqlite wrapper for DedupeLibrary.
     /// </summary>
-    public class SqliteWrapper
+    internal class SqliteWrapper
     {
         #region Public-Members
 
