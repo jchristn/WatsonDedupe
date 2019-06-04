@@ -15,7 +15,7 @@ Please contact me or file an issue here if you encounter any problems with the l
 
 ## Installing with NuGet
 
-Due to some unforseen issues with NuGet, you must download and add sqlite3.dll to your project manually.  Set it to copy to output always.
+Due to some unforseen issues with NuGet, you may need to download and add sqlite3.dll to your project manually.  Set it to copy to output always.
 
 ## Under the Hood
 
@@ -23,7 +23,7 @@ The Watson Dedupe library will take an incoming byte array (which you give an ob
 
 ## Two Libraries
 
-Two libraries are included:
+Two libraries are included in the ```WatsonDedupe``` namespace:
 
 - DedupeLibrary - one single repository (database) useful for smaller objects and chunk counts where the number of database rows will not impede performance.  Use this library for small deployments with few objects and few chunks.
 - DedupeLibraryXL - one master database referencing one or more container databases.  Useful for larger objects or larger chunk sets where the row count would otherwise impede performance.  Use this libray for larger deployments.
@@ -42,7 +42,7 @@ CLI projects are also included which provide a binary that can be used to intera
 
 The library requires that you implement three functions within your app for managing chunk data, specifically, writing, reading, and deleting.  This was done to provide you with flexibility on where you store chunk data and how you manage it.  
 
-Be sure to create the directory 'Chunks' prior to execution, and include a text file named 'kjv.txt' in the output directory (you can use the 'bible.txt' file from the SampleData folder for this purpose, but rename it).
+Be sure to create the directory 'Chunks' prior to execution, and include a text file named 'kjv.txt' in the output directory (you can use the ```bible.txt``` file from the SampleData folder for this purpose, but rename it).
 ```
 using System;
 using System.Collections.Generic;
@@ -130,25 +130,25 @@ namespace WatsonDedupeSampleApp
 ## CLI Example
 ```
 // Initialize new index
-> dedupecli test.idx create --params=128,4096,16,2
+> dedupe test.idx create --params=128,4096,16,2
 
 // Store an object
-> dedupecli test.idx store --chunks=chunks --key=obj1 < obj1.txt
+> dedupe test.idx store --chunks=chunks --key=obj1 < obj1.txt
 
 // Retrieve an object
-> dedupecli test.idx retrieve --chunks=chunks --key=obj1 > obj1_new.txt
+> dedupe test.idx retrieve --chunks=chunks --key=obj1 > obj1_new.txt
 
 // Delete an object
-> dedupecli test.idx delete --chunks=chunks --key=obj1
+> dedupe test.idx delete --chunks=chunks --key=obj1
 
 // List objects
-> dedupecli test.idx list
+> dedupe test.idx list
 
 // Check object existence
-> dedupecli test.idx exists --key=obj1
+> dedupe test.idx exists --key=obj1
 
 // Gather index stats
-> dedupecli test.idx stats
+> dedupe test.idx stats
 ```
 
 ## Index Settings
@@ -169,5 +169,6 @@ In some cases, it is assumed that duplicate data will not be found within a file
 In other cases, where it is assumed that duplicate data will be found within a file and across files, smaller values can be used.
 
 Recommended settings for most environments (min, max, shift, boundary):
+
 - For small file environments, use 256, 4096, 16, and 2
 - For large file environments, use 8192, 65536, 512, and 3
