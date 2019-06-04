@@ -9,7 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using WatsonDedupe;
 
-namespace DedupeCliNetFramework
+namespace Cli
 {
     class Program
     {
@@ -268,7 +268,7 @@ namespace DedupeCliNetFramework
                             Console.WriteLine(Dedupe.ObjectExists(ObjectKey));
                         }
                         return;
-                        
+
                     default:
                         Usage("Unknown command: " + Command);
                         return;
@@ -281,7 +281,7 @@ namespace DedupeCliNetFramework
                 ExceptionConsole("Dedupe", "Outer exception", e);
             }
         }
-        
+
         static void ExceptionConsole(string method, string text, Exception e)
         {
             var st = new StackTrace(e, true);
@@ -407,8 +407,8 @@ namespace DedupeCliNetFramework
                 Console.WriteLine("");
             }
 
-                            //          1         2         3         4         5         6         7        
-                            // 12345678901234567890123456789012345678901234567890123456789012345678901234567890
+            //          1         2         3         4         5         6         7        
+            // 12345678901234567890123456789012345678901234567890123456789012345678901234567890
             Console.WriteLine("Dedupe CLI v" + Version());
             Console.WriteLine("Usage:");
             Console.WriteLine("$ dedupe [index] [command] [options]");

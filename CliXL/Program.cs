@@ -9,12 +9,14 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using WatsonDedupe;
 
-namespace DedupeCliNetCore
+namespace Cli
 {
     class Program
     {
         static string Command;
-        static string IndexFile;
+        static string PoolIndexFile;
+        static string ContainerName;
+        static string ContainerIndexFile;
         static string ChunkDirectory;
         static string ObjectKey;
         static string CreateParams;
@@ -25,7 +27,7 @@ namespace DedupeCliNetCore
 
         static bool DebugDedupe = false;
         static bool DebugSql = false;
-        static DedupeLibrary Dedupe;
+        static DedupeLibraryXL Dedupe;
 
         static int NumObjects;
         static int NumChunks;
@@ -50,7 +52,7 @@ namespace DedupeCliNetCore
                     return;
                 }
 
-                IndexFile = args[0];
+                PoolIndexFile = args[0];
                 Command = args[1];
 
                 for (int i = 2; i < args.Length; i++)
@@ -65,6 +67,14 @@ namespace DedupeCliNetCore
                     else if (args[i].StartsWith("--key=") && args[i].Length > 6)
                     {
                         ObjectKey = args[i].Substring(6);
+                    }
+                    else if (args[i].StartsWith("--cname=") && args[i].Length > 8)
+                    {
+                        ContainerName = args[i].Substring(8);
+                    }
+                    else if (args[i].StartsWith("--cindex=") && args[i].Length > 9)
+                    {
+                        ContainerIndexFile = args[i].Substring(9);
                     }
                     else if (String.Compare(args[i], "--debug") == 0)
                     {
@@ -113,7 +123,7 @@ namespace DedupeCliNetCore
 
                 #region Verify-Values
 
-                List<string> validCommands = new List<string>() { "create", "stats", "store", "retrieve", "delete", "list", "exists" };
+                List<string> validCommands = new List<string>() { "create", "stats", "store", "retrieve", "cdelete", "odelete", "clist", "olist", "cexists", "oexists" };
                 if (!validCommands.Contains(Command))
                 {
                     Usage("Invalid command: " + Command);
@@ -126,14 +136,18 @@ namespace DedupeCliNetCore
 
                 if (DebugDedupe)
                 {
-                    Console.WriteLine("Command         : " + Command);
-                    Console.WriteLine("Index File      : " + IndexFile);
-                    Console.WriteLine("Chunk Directory : " + ChunkDirectory);
-                    Console.WriteLine("Object Key      : " + ObjectKey);
-                    if (MinChunkSize > 0) Console.WriteLine("Min Chunk Size  : " + MinChunkSize);
-                    if (MaxChunkSize > 0) Console.WriteLine("Max Chunk Size  : " + MaxChunkSize);
-                    if (ShiftCount > 0) Console.WriteLine("Shift Count     : " + ShiftCount);
-                    if (BoundaryCheckBytes > 0) Console.WriteLine("Boundary Bytes  : " + BoundaryCheckBytes);
+                    Console.WriteLine("Command              : " + Command);
+                    Console.WriteLine("Index File           : " + PoolIndexFile);
+                    Console.WriteLine("Chunk Directory      : " + ChunkDirectory);
+                    Console.WriteLine("Container Name       : " + ContainerName);
+                    Console.WriteLine("Container Index File : " + ContainerIndexFile);
+                    Console.WriteLine("Object Key           : " + ObjectKey);
+                    if (MinChunkSize > 0) Console.WriteLine("Min Chunk Size       : " + MinChunkSize);
+                    if (MaxChunkSize > 0) Console.WriteLine("Max Chunk Size       : " + MaxChunkSize);
+                    if (ShiftCount > 0) Console.WriteLine("Shift Count          : " + ShiftCount);
+                    if (BoundaryCheckBytes > 0) Console.WriteLine("Boundary Bytes       : " + BoundaryCheckBytes);
+                    Console.WriteLine("Debug Dedupe         : " + DebugDedupe);
+                    Console.WriteLine("Debug SQL            : " + DebugSql);
                 }
 
                 #endregion
@@ -142,8 +156,8 @@ namespace DedupeCliNetCore
 
                 if (String.Compare(Command, "create") == 0)
                 {
-                    Dedupe = new DedupeLibrary(IndexFile, MinChunkSize, MaxChunkSize, ShiftCount, BoundaryCheckBytes, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
-                    if (DebugDedupe) Console.WriteLine("Successfully wrote new index: " + IndexFile);
+                    Dedupe = new DedupeLibraryXL(PoolIndexFile, MinChunkSize, MaxChunkSize, ShiftCount, BoundaryCheckBytes, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                    if (DebugDedupe) Console.WriteLine("Successfully wrote new index: " + PoolIndexFile);
                     return;
                 }
 
@@ -151,12 +165,12 @@ namespace DedupeCliNetCore
 
                 #region Initialize-Index
 
-                if (!File.Exists(IndexFile))
+                if (!File.Exists(PoolIndexFile))
                 {
-                    Console.WriteLine("*** Index file " + IndexFile + " not found");
+                    Console.WriteLine("*** Index file " + PoolIndexFile + " not found");
                 }
 
-                Dedupe = new DedupeLibrary(IndexFile, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                Dedupe = new DedupeLibraryXL(PoolIndexFile, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
 
                 #endregion
 
@@ -186,9 +200,17 @@ namespace DedupeCliNetCore
                         {
                             Usage("Object key must be supplied");
                         }
+                        else if (String.IsNullOrEmpty(ContainerName))
+                        {
+                            Usage("Container name must be supplied");
+                        }
+                        else if (String.IsNullOrEmpty(ContainerIndexFile))
+                        {
+                            Usage("Container index file must be supplied");
+                        }
                         else
                         {
-                            if (!Dedupe.RetrieveObject(ObjectKey, out ResponseData))
+                            if (!Dedupe.RetrieveObject(ObjectKey, ContainerName, ContainerIndexFile, out ResponseData))
                             {
                                 Console.WriteLine("Failed");
                             }
@@ -204,16 +226,24 @@ namespace DedupeCliNetCore
                         {
                             Usage("Object key must be supplied");
                         }
+                        else if (String.IsNullOrEmpty(ContainerName))
+                        {
+                            Usage("Container name must be supplied");
+                        }
+                        else if (String.IsNullOrEmpty(ContainerIndexFile))
+                        {
+                            Usage("Container index file must be supplied");
+                        }
                         else
                         {
-                            if (Dedupe.ObjectExists(ObjectKey))
+                            if (Dedupe.ObjectExists(ObjectKey, ContainerName, ContainerIndexFile))
                             {
                                 Console.WriteLine("Already exists");
                             }
                             else
                             {
                                 ReadConsoleData();
-                                if (!Dedupe.StoreObject(ObjectKey, RequestData, out Chunks))
+                                if (!Dedupe.StoreObject(ObjectKey, ContainerName, ContainerIndexFile, RequestData, out Chunks))
                                 {
                                     Console.WriteLine("Failed");
                                 }
@@ -225,14 +255,37 @@ namespace DedupeCliNetCore
                         }
                         return;
 
-                    case "delete":
+                    case "cdelete":
+                        if (String.IsNullOrEmpty(ContainerName))
+                        {
+                            Usage("Container name must be supplied");
+                        }
+                        else if (String.IsNullOrEmpty(ContainerIndexFile))
+                        {
+                            Usage("Container index file must be supplied");
+                        }
+                        else
+                        {
+                            Dedupe.DeleteContainer(ContainerName, ContainerIndexFile);
+                        }
+                        return;
+
+                    case "odelete":
                         if (String.IsNullOrEmpty(ObjectKey))
                         {
                             Usage("Object key must be supplied");
                         }
+                        else if (String.IsNullOrEmpty(ContainerName))
+                        {
+                            Usage("Container name must be supplied");
+                        }
+                        else if (String.IsNullOrEmpty(ContainerIndexFile))
+                        {
+                            Usage("Container index file must be supplied");
+                        }
                         else
                         {
-                            if (!Dedupe.DeleteObject(ObjectKey))
+                            if (!Dedupe.DeleteObject(ObjectKey, ContainerName, ContainerIndexFile))
                             {
                                 Console.WriteLine("Failed");
                             }
@@ -243,8 +296,16 @@ namespace DedupeCliNetCore
                         }
                         return;
 
-                    case "list":
-                        Dedupe.ListObjects(out Keys);
+                    case "olist":
+                        if (String.IsNullOrEmpty(ContainerName))
+                        {
+                            Usage("Container name must be supplied");
+                        }
+                        else if (String.IsNullOrEmpty(ContainerIndexFile))
+                        {
+                            Usage("Container index file must be supplied");
+                        }
+                        Dedupe.ListObjects(ContainerName, ContainerIndexFile, out Keys);
                         if (Keys == null || Keys.Count < 1)
                         {
                             Console.WriteLine("No objects");
@@ -257,18 +318,51 @@ namespace DedupeCliNetCore
                         }
                         return;
 
-                    case "exists":
+                    case "oexists":
                         if (String.IsNullOrEmpty(ObjectKey))
                         {
                             Usage("Object key must be supplied");
                             return;
                         }
+                        else if (String.IsNullOrEmpty(ContainerName))
+                        {
+                            Usage("Container name must be supplied");
+                        }
+                        else if (String.IsNullOrEmpty(ContainerIndexFile))
+                        {
+                            Usage("Container index file must be supplied");
+                        }
                         else
                         {
-                            Console.WriteLine(Dedupe.ObjectExists(ObjectKey));
+                            Console.WriteLine(Dedupe.ObjectExists(ObjectKey, ContainerName, ContainerIndexFile));
                         }
                         return;
-                        
+
+                    case "clist":
+                        Dedupe.ListContainers(out Keys);
+                        if (Keys == null || Keys.Count < 1)
+                        {
+                            Console.WriteLine("No containers");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Containers:");
+                            foreach (string curr in Keys) Console.WriteLine("  " + curr);
+                            Console.WriteLine(Keys.Count + " containers in index");
+                        }
+                        return;
+
+                    case "cexists":
+                        if (String.IsNullOrEmpty(ContainerName))
+                        {
+                            Usage("Container name must be supplied");
+                        }
+                        else
+                        {
+                            Console.WriteLine(Dedupe.ContainerExists(ContainerName));
+                        }
+                        return;
+
                     default:
                         Usage("Unknown command: " + Command);
                         return;
@@ -281,7 +375,7 @@ namespace DedupeCliNetCore
                 ExceptionConsole("Dedupe", "Outer exception", e);
             }
         }
-        
+
         static void ExceptionConsole(string method, string text, Exception e)
         {
             var st = new StackTrace(e, true);
@@ -407,8 +501,8 @@ namespace DedupeCliNetCore
                 Console.WriteLine("");
             }
 
-                            //          1         2         3         4         5         6         7        
-                            // 12345678901234567890123456789012345678901234567890123456789012345678901234567890
+            //          1         2         3         4         5         6         7        
+            // 12345678901234567890123456789012345678901234567890123456789012345678901234567890
             Console.WriteLine("Dedupe CLI v" + Version());
             Console.WriteLine("Usage:");
             Console.WriteLine("$ dedupe [index] [command] [options]");
@@ -416,20 +510,25 @@ namespace DedupeCliNetCore
             Console.WriteLine("Where [index] is the deduplication index database, and command is one of:");
             Console.WriteLine("  create              Create the index (supply --params)");
             Console.WriteLine("  stats               Gather deduplication stats from the index");
-            Console.WriteLine("  store               Write an object to the index");
-            Console.WriteLine("  retrieve            Retrieve an object from the index");
-            Console.WriteLine("  delete              Delete an object from the index");
-            Console.WriteLine("  list                List the objects in the index");
-            Console.WriteLine("  exists              Check if an object exists in the index");
+            Console.WriteLine("  store               Write an object to a container");
+            Console.WriteLine("  retrieve            Retrieve an object from a container");
+            Console.WriteLine("  odelete             Delete an object from a container");
+            Console.WriteLine("  cdelete             Delete a container from the index");
+            Console.WriteLine("  olist               List the objects in a container");
+            Console.WriteLine("  clist               List the containers in the index");
+            Console.WriteLine("  oexists             Check if an object exists in a container");
+            Console.WriteLine("  cexists             Check if a container exists in the index");
             Console.WriteLine("");
             Console.WriteLine("Where [options] are:");
             Console.WriteLine("  --chunks=[dir]      Directory where chunks are stored");
             Console.WriteLine("  --key=[name]        The object key to store or retrieve");
+            Console.WriteLine("  --cindex=[file]     Path and filename to the container index");
+            Console.WriteLine("  --cname=[name]      Name of the container");
             Console.WriteLine("  --debug             Enable dedupe debug logging to the console");
             Console.WriteLine("  --debugsql          Enable SQL debug logging to the console");
             Console.WriteLine("  --params=[params]   Index creation parameters");
             Console.WriteLine("");
-            Console.WriteLine("Creating an index");
+            Console.WriteLine("Creating an index:");
             Console.WriteLine("  When creating a container, use the following value for --params:");
             Console.WriteLine("  [minchunksize],[maxchunksize],[shiftcount],[boundarycheckbytes]");
             Console.WriteLine("  Where: ");
@@ -438,12 +537,18 @@ namespace DedupeCliNetCore
             Console.WriteLine("    shiftcount          Number of bytes to shift while locating a chunk");
             Console.WriteLine("    boundarycheckbytes  Number of bytes to compare while locating a chunk");
             Console.WriteLine("");
-            Console.WriteLine("Storing an object:");
-            Console.WriteLine("  $ dedupe [index] store --key=[key] --chunks=[dir] < file.txt");
-            Console.WriteLine("  $ echo Some data! | dedupe [index] store --key=[key] --chunks=[dir]");
+            Console.WriteLine("Storing an object using an existing file:");
+            Console.WriteLine("  $ dedupe [index] store --key=[key] ");
+            Console.WriteLine("           --cindex=[file] --cname=[name] --chunks=[dir] < file.txt");
+            Console.WriteLine("");
+            Console.WriteLine("Storing an object using echo:");
+            Console.WriteLine("  $ echo Some data! | dedupe [index] store --key=[key] ");
+            Console.WriteLine("                             --cindex=[file] --cname=[name] ");
+            Console.WriteLine("                             --chunks=[dir]");
             Console.WriteLine("");
             Console.WriteLine("Retrieving an object:");
-            Console.WriteLine("  $ dedupe [index] retrieve --key=[key] --chunks=[dir] > file.txt");
+            Console.WriteLine("  $ dedupe [index] retrieve --key=[key] --cindex=[file] ");
+            Console.WriteLine("           --cname=[name] --chunks=[dir] > file.txt");
             Console.WriteLine("");
         }
 

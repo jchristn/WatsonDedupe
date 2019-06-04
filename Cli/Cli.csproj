@@ -2,9 +2,8 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.0</TargetFramework>
-    <RootNamespace>DedupeCliNetCore</RootNamespace>
-    <AssemblyName>DedupeCli</AssemblyName>
+    <TargetFrameworks>netcoreapp2.0;net452</TargetFrameworks>
+    <AssemblyName>dedupe</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

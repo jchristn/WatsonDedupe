@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using WatsonDedupe;
 
-namespace DedupeTestNetCore
+namespace Test
 {
     class Program
     {
@@ -30,7 +30,7 @@ namespace DedupeTestNetCore
             long physicalBytes;
             decimal dedupeRatioX;
             decimal dedupeRatioPercent;
-            
+
             Initialize();
 
             while (runForever)

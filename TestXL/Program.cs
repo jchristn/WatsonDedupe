@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using WatsonDedupe;
 
-namespace DedupeTestXLNetFramework
+namespace Test
 {
     class Program
     {

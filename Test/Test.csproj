@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>netcoreapp2.0;net452</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DedupeCore\DedupeCore.csproj" />
+    <ProjectReference Include="..\DedupeLibrary\DedupeLibrary.csproj" />
+  </ItemGroup>
+
+</Project>

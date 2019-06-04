@@ -2,6 +2,19 @@
 
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net452</TargetFrameworks>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>WatsonDedupe</PackageId>
+    <Version>1.0.17</Version>
+    <Authors>Joel Christner</Authors>
+    <Product>WatsonDedupe</Product>
+    <Description>Standalone C# library for deduplication of data using Sqlite.</Description>
+    <PackageProjectUrl>https://github.com/jchristn/WatsonDedupe</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jchristn/WatsonDedupe</RepositoryUrl>
+    <RepositoryType>Github</RepositoryType>
+    <PackageReleaseNotes>Consolidate test applications, minor cleanup</PackageReleaseNotes>
+    <PackageTags>dedupe deduplication compression compress</PackageTags>
+    <PackageLicenseUrl>https://raw.githubusercontent.com/jchristn/WatsonDedupe/master/LICENSE.txt</PackageLicenseUrl>
+    <Copyright>(c)2019 Joel Christner</Copyright>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.0|AnyCPU'">
