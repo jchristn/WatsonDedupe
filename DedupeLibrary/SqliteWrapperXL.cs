@@ -290,6 +290,34 @@ namespace WatsonDedupe
         }
 
         /// <summary>
+        /// Determine if a chunk exists in the index.
+        /// </summary>
+        /// <param name="chunkKey">Chunk key.</param>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        /// <returns>True if the chunk exists.</returns>
+        public bool ChunkExists(string chunkKey, string containerName, string containerIndexFile)
+        {
+            if (String.IsNullOrEmpty(chunkKey)) return false;
+            if (String.IsNullOrEmpty(containerName)) return false;
+            if (String.IsNullOrEmpty(containerIndexFile)) return false;
+
+            chunkKey = Common.SanitizeString(chunkKey);
+            containerName = Common.SanitizeString(containerName);
+            containerIndexFile = Common.SanitizeString(containerIndexFile);
+
+            string query = "SELECT * FROM ObjectMap WHERE ChunkKey = '" + chunkKey + "' AND ContainerName = '" + containerName + "' LIMIT 1";
+            DataTable result;
+
+            if (QueryContainerIndex(query, containerIndexFile, out result))
+            {
+                if (result != null && result.Rows.Count > 0) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Determine if an object exists within a container.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
