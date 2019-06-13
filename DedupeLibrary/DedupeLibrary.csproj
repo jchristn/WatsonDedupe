@@ -4,7 +4,7 @@
     <TargetFrameworks>netstandard2.0;net452</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>WatsonDedupe</PackageId>
-    <Version>1.2.0</Version>
+    <Version>1.2.2</Version>
     <Authors>Joel Christner</Authors>
     <Product>WatsonDedupe</Product>
     <Description>Standalone C# library for deduplication of data using Sqlite.</Description>

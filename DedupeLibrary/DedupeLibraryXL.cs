@@ -24,6 +24,11 @@ namespace WatsonDedupe
         /// </summary>
         public bool DebugSql;
 
+        /// <summary>
+        /// Callback methods used by the dedupe library to read, write, and delete chunks.
+        /// </summary> 
+        public CallbackMethods Callbacks = new CallbackMethods();
+
         #endregion
 
         #region Private-Members
@@ -33,7 +38,6 @@ namespace WatsonDedupe
         private int _MaxChunkSize;
         private int _ShiftCount;
         private int _BoundaryCheckBytes;
-        private CallbackMethods _Callbacks = new CallbackMethods();
         private readonly object _ChunkLock;
 
         private SqliteWrapperXL _PoolSql;
@@ -61,10 +65,10 @@ namespace WatsonDedupe
 
             _PoolIndexFile = Common.SanitizeString(poolIndexFile);
 
-            _Callbacks = new CallbackMethods();
-            _Callbacks.WriteChunk = writeChunkMethod;
-            _Callbacks.ReadChunk = readChunkMethod;
-            _Callbacks.DeleteChunk = deleteChunkMethod;
+            Callbacks = new CallbackMethods();
+            Callbacks.WriteChunk = writeChunkMethod;
+            Callbacks.ReadChunk = readChunkMethod;
+            Callbacks.DeleteChunk = deleteChunkMethod;
 
             DebugDedupe = debugDedupe;
             DebugSql = debugSql;
@@ -122,10 +126,10 @@ namespace WatsonDedupe
             _ShiftCount = shiftCount;
             _BoundaryCheckBytes = boundaryCheckBytes;
 
-            _Callbacks = new CallbackMethods();
-            _Callbacks.WriteChunk = writeChunkMethod;
-            _Callbacks.ReadChunk = readChunkMethod;
-            _Callbacks.DeleteChunk = deleteChunkMethod;
+            Callbacks = new CallbackMethods();
+            Callbacks.WriteChunk = writeChunkMethod;
+            Callbacks.ReadChunk = readChunkMethod;
+            Callbacks.DeleteChunk = deleteChunkMethod;
 
             DebugDedupe = debugDedupe;
             DebugSql = debugSql;
@@ -210,7 +214,7 @@ namespace WatsonDedupe
             {
                 foreach (Chunk curr in chunks)
                 {
-                    if (!_Callbacks.WriteChunk(curr))
+                    if (!Callbacks.WriteChunk(curr))
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
                         storageSuccess = false;
@@ -227,7 +231,7 @@ namespace WatsonDedupe
                     {
                         foreach (string key in garbageCollectKeys)
                         {
-                            if (!_Callbacks.DeleteChunk(key))
+                            if (!Callbacks.DeleteChunk(key))
                             {
                                 if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                             }
@@ -307,7 +311,7 @@ namespace WatsonDedupe
                 bool storageSuccess = true;
                 foreach (Chunk curr in chunks)
                 {
-                    if (!_Callbacks.WriteChunk(curr))
+                    if (!Callbacks.WriteChunk(curr))
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
                         storageSuccess = false;
@@ -324,7 +328,7 @@ namespace WatsonDedupe
                     {
                         foreach (string key in garbageCollectKeys)
                         {
-                            if (!_Callbacks.DeleteChunk(key))
+                            if (!Callbacks.DeleteChunk(key))
                             {
                                 if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                             }
@@ -398,7 +402,7 @@ namespace WatsonDedupe
 
                 foreach (Chunk curr in md.Chunks)
                 {
-                    byte[] chunkData = _Callbacks.ReadChunk(curr.Key);
+                    byte[] chunkData = Callbacks.ReadChunk(curr.Key);
                     if (chunkData == null || chunkData.Length < 1)
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to read chunk " + curr.Key);
@@ -435,7 +439,7 @@ namespace WatsonDedupe
                 {
                     foreach (string key in garbageCollectChunks)
                     {
-                        if (!_Callbacks.DeleteChunk(key))
+                        if (!Callbacks.DeleteChunk(key))
                         {
                             if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                         }
@@ -512,6 +516,18 @@ namespace WatsonDedupe
         public bool ObjectExists(string objectName, string containerName, string containerIndexFile)
         {
             return _PoolSql.ObjectExists(containerName, containerName, containerIndexFile);
+        }
+
+        /// <summary>
+        /// Determine if a chunk exists in a container.
+        /// </summary>
+        /// <param name="chunkKey">The chunk's key.</param>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        /// <returns>Boolean indicating if the object exists.</returns>
+        public bool ChunkExists(string chunkKey, string containerName, string containerIndexFile)
+        {
+            return _PoolSql.ChunkExists(chunkKey, containerName, containerIndexFile);
         }
 
         /// <summary>
