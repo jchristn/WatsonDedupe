@@ -9,4 +9,10 @@
     <ProjectReference Include="..\DedupeLibrary\DedupeLibrary.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="SampleFiles\kjv.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
