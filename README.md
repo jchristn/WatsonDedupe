@@ -1,3 +1,5 @@
+![alt tag](https://github.com/jchristn/watsondedupe/blob/master/assets/watson.ico)
+
 # Watson Deduplication Library
 
 [![][nuget-img]][nuget]
