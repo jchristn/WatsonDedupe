@@ -153,10 +153,27 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreObject(string objectName, byte[] data, out List<Chunk> chunks)
         {
+            return StoreObject(objectName, Callbacks, data, out chunks);
+        }
+
+        /// <summary>
+        /// Store an object in the deduplication index.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="data">The byte data for the object.</param>
+        /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
+        /// <returns>True if successful.</returns>
+        public bool StoreObject(string objectName, CallbackMethods callbacks, byte[] data, out List<Chunk> chunks)
+        {
             #region Initialize
 
             chunks = new List<Chunk>();
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
+            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
             if (data == null || data.Length < 1) return false;
             objectName = Common.SanitizeString(objectName);
 
@@ -197,7 +214,7 @@ namespace WatsonDedupe
                 bool storageSuccess = true;
                 foreach (Chunk curr in chunks)
                 {
-                    if (!Callbacks.WriteChunk(curr))
+                    if (!callbacks.WriteChunk(curr))
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
                         storageSuccess = false;
@@ -214,7 +231,7 @@ namespace WatsonDedupe
                     {
                         foreach (string key in garbageCollectKeys)
                         {
-                            if (!Callbacks.DeleteChunk(key))
+                            if (!callbacks.DeleteChunk(key))
                             {
                                 if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                             }
@@ -238,10 +255,27 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreOrReplaceObject(string objectName, byte[] data, out List<Chunk> chunks)
         {
+            return StoreOrReplaceObject(objectName, Callbacks, data, out chunks); 
+        }
+
+        /// <summary>
+        /// Store an object within a container in the deduplication index if it doesn't already exist, or, replace the object if it does.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="data">The byte data for the object.</param>
+        /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
+        /// <returns>True if successful.</returns>
+        public bool StoreOrReplaceObject(string objectName, CallbackMethods callbacks, byte[] data, out List<Chunk> chunks)
+        {
             #region Initialize
 
             chunks = new List<Chunk>();
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
+            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
             if (data == null || data.Length < 1) return false;
             objectName = Common.SanitizeString(objectName);
 
@@ -290,7 +324,7 @@ namespace WatsonDedupe
                 bool storageSuccess = true;
                 foreach (Chunk curr in chunks)
                 {
-                    if (!Callbacks.WriteChunk(curr))
+                    if (!callbacks.WriteChunk(curr))
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
                         storageSuccess = false;
@@ -307,7 +341,7 @@ namespace WatsonDedupe
                     {
                         foreach (string key in garbageCollectKeys)
                         {
-                            if (!Callbacks.DeleteChunk(key))
+                            if (!callbacks.DeleteChunk(key))
                             {
                                 if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                             }
@@ -348,8 +382,23 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool RetrieveObject(string objectName, out byte[] data)
         {
+            return RetrieveObject(objectName, Callbacks, out data);
+        }
+
+        /// <summary>
+        /// Retrieve an object from the deduplication index.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="data">The byte data from the object.</param>
+        /// <returns>True if successful.</returns>
+        public bool RetrieveObject(string objectName, CallbackMethods callbacks, out byte[] data)
+        {
             data = null;
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.ReadChunk == null) throw new ArgumentException("ReadChunk callback must be specified."); 
             objectName = Common.SanitizeString(objectName);
 
             ObjectMetadata md = null;
@@ -367,12 +416,12 @@ namespace WatsonDedupe
                     if (DebugDedupe) Console.WriteLine("No chunks returned");
                     return false;
                 }
-                  
+
                 data = Common.InitBytes(md.ContentLength, 0x00);
 
                 foreach (Chunk curr in md.Chunks)
                 {
-                    byte[] chunkData = Callbacks.ReadChunk(curr.Key);
+                    byte[] chunkData = callbacks.ReadChunk(curr.Key);
                     if (chunkData == null || chunkData.Length < 1)
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to read chunk " + curr.Key);
@@ -393,7 +442,21 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool DeleteObject(string objectName)
         {
+            return DeleteObject(objectName, Callbacks);
+        }
+
+        /// <summary>
+        /// Delete an object stored in the deduplication index.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <returns>True if successful.</returns>
+        public bool DeleteObject(string objectName, CallbackMethods callbacks)
+        {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
             objectName = Common.SanitizeString(objectName);
 
             List<string> garbageCollectChunks = null;
@@ -405,7 +468,7 @@ namespace WatsonDedupe
                 {
                     foreach (string key in garbageCollectChunks)
                     {
-                        if (!Callbacks.DeleteChunk(key))
+                        if (!callbacks.DeleteChunk(key))
                         {
                             if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                         }

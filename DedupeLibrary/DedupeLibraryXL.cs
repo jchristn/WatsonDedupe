@@ -168,12 +168,31 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreObject(string objectName, string containerName, string containerIndexFile, byte[] data, out List<Chunk> chunks)
         {
+            return StoreObject(objectName, containerName, containerIndexFile, Callbacks, data, out chunks);
+        }
+
+        /// <summary>
+        /// Store an object within a container in the deduplication index.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.  Must be unique in the container.</param>
+        /// <param name="containerName">The name of the container.  Must be unique in the index.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="data">The byte data for the object.</param>
+        /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
+        /// <returns>True if successful.</returns>
+        public bool StoreObject(string objectName, string containerName, string containerIndexFile, CallbackMethods callbacks, byte[] data, out List<Chunk> chunks)
+        {
             #region Initialize
 
             chunks = new List<Chunk>();
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
+            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
             if (data == null || data.Length < 1) return false;
             objectName = Common.SanitizeString(objectName);
 
@@ -214,7 +233,7 @@ namespace WatsonDedupe
             {
                 foreach (Chunk curr in chunks)
                 {
-                    if (!Callbacks.WriteChunk(curr))
+                    if (!callbacks.WriteChunk(curr))
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
                         storageSuccess = false;
@@ -231,7 +250,7 @@ namespace WatsonDedupe
                     {
                         foreach (string key in garbageCollectKeys)
                         {
-                            if (!Callbacks.DeleteChunk(key))
+                            if (!callbacks.DeleteChunk(key))
                             {
                                 if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                             }
@@ -257,12 +276,31 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreOrReplaceObject(string objectName, string containerName, string containerIndexFile, byte[] data, out List<Chunk> chunks)
         {
+            return StoreOrReplaceObject(objectName, containerName, containerIndexFile, Callbacks, data, out chunks);
+        }
+
+        /// <summary>
+        /// Store an object within a container in the deduplication index if it doesn't already exist, or, replace the object if it does.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.  Must be unique in the container.</param>
+        /// <param name="containerName">The name of the container.  Must be unique in the index.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="data">The byte data for the object.</param>
+        /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
+        /// <returns>True if successful.</returns>
+        public bool StoreOrReplaceObject(string objectName, string containerName, string containerIndexFile, CallbackMethods callbacks, byte[] data, out List<Chunk> chunks)
+        {
             #region Initialize
 
             chunks = new List<Chunk>();
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
+            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
             if (data == null || data.Length < 1) return false;
             objectName = Common.SanitizeString(objectName);
 
@@ -311,7 +349,7 @@ namespace WatsonDedupe
                 bool storageSuccess = true;
                 foreach (Chunk curr in chunks)
                 {
-                    if (!Callbacks.WriteChunk(curr))
+                    if (!callbacks.WriteChunk(curr))
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
                         storageSuccess = false;
@@ -328,7 +366,7 @@ namespace WatsonDedupe
                     {
                         foreach (string key in garbageCollectKeys)
                         {
-                            if (!Callbacks.DeleteChunk(key))
+                            if (!callbacks.DeleteChunk(key))
                             {
                                 if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                             }
@@ -375,10 +413,27 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool RetrieveObject(string objectName, string containerName, string containerIndexFile, out byte[] data)
         {
+            return RetrieveObject(objectName, containerName, containerIndexFile, Callbacks, out data);
+        }
+
+        /// <summary>
+        /// Retrieve an object from a container.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="data">The byte data from the object.</param>
+        /// <returns>True if successful.</returns>
+        public bool RetrieveObject(string objectName, string containerName, string containerIndexFile, CallbackMethods callbacks, out byte[] data)
+        {
             data = null;
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.ReadChunk == null) throw new ArgumentException("ReadChunk callback must be specified.");
             if (!File.Exists(containerIndexFile)) throw new FileNotFoundException();
             objectName = Common.SanitizeString(objectName);
 
@@ -397,12 +452,12 @@ namespace WatsonDedupe
                     if (DebugDedupe) Console.WriteLine("No chunks returned");
                     return false;
                 }
-                 
+
                 data = Common.InitBytes(md.ContentLength, 0x00);
 
                 foreach (Chunk curr in md.Chunks)
                 {
-                    byte[] chunkData = Callbacks.ReadChunk(curr.Key);
+                    byte[] chunkData = callbacks.ReadChunk(curr.Key);
                     if (chunkData == null || chunkData.Length < 1)
                     {
                         if (DebugDedupe) Console.WriteLine("Unable to read chunk " + curr.Key);
@@ -425,9 +480,25 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool DeleteObject(string objectName, string containerName, string containerIndexFile)
         {
+            return DeleteObject(objectName, containerName, containerIndexFile, Callbacks);
+        }
+
+        /// <summary>
+        /// Delete an object stored in a container.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <returns>True if successful.</returns>
+        public bool DeleteObject(string objectName, string containerName, string containerIndexFile, CallbackMethods callbacks)
+        {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
             objectName = Common.SanitizeString(objectName);
 
             List<string> garbageCollectChunks = null;
@@ -439,7 +510,7 @@ namespace WatsonDedupe
                 {
                     foreach (string key in garbageCollectChunks)
                     {
-                        if (!Callbacks.DeleteChunk(key))
+                        if (!callbacks.DeleteChunk(key))
                         {
                             if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
                         }
@@ -457,6 +528,18 @@ namespace WatsonDedupe
         /// <param name="containerIndexFile">The path to the index file for the container.</param>
         public void DeleteContainer(string containerName, string containerIndexFile)
         {
+            DeleteContainer(containerName, containerIndexFile, Callbacks);
+        }
+
+        /// <summary>
+        /// Delete a container stored in the deduplication index.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="containerName">The name of the container.</param>
+        /// <param name="containerIndexFile">The path to the index file for the container.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        public void DeleteContainer(string containerName, string containerIndexFile, CallbackMethods callbacks)
+        {
             if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
             if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
 
@@ -468,7 +551,7 @@ namespace WatsonDedupe
                 {
                     foreach (string curr in keys)
                     {
-                        DeleteObject(curr, containerName, containerIndexFile);
+                        DeleteObject(curr, containerName, containerIndexFile, callbacks);
                     }
                 }
             }
