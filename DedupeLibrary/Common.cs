@@ -164,6 +164,15 @@ namespace WatsonDedupe
             return true;
         }
 
+        public static MemoryStream BytesToStream(byte[] data)
+        {
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            MemoryStream ret = new MemoryStream();
+            ret.Write(data, 0, data.Length);
+            ret.Seek(0, SeekOrigin.Begin);
+            return ret;
+        }
+
         public static byte[] AppendBytes(byte[] head, byte[] tail)
         {
             byte[] arrayCombined = new byte[head.Length + tail.Length];

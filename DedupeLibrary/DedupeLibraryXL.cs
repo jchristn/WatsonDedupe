@@ -169,7 +169,8 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreObject(string objectName, string containerName, string containerIndexFile, byte[] data, out List<Chunk> chunks)
         {
-            return StoreObject(objectName, containerName, containerIndexFile, Callbacks, data, out chunks);
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            return StoreObject(objectName, containerName, containerIndexFile, Callbacks, data.Length, DedupeCommon.BytesToStream(data), out chunks);
         }
 
         /// <summary>
@@ -200,85 +201,8 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreObject(string objectName, string containerName, string containerIndexFile, CallbackMethods callbacks, byte[] data, out List<Chunk> chunks)
         {
-            #region Initialize
-
-            chunks = new List<Chunk>();
-            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
-            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
-            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
-            if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
-            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
-            if (data == null || data.Length < 1) return false;
-            objectName = DedupeCommon.SanitizeString(objectName);
-
-            if (_PoolSql.ObjectExists(objectName, containerName, containerIndexFile))
-            {
-                Log("Object " + objectName + " already exists");
-                return false;
-            }
-
-            #endregion
-
-            #region Chunk-Data
-
-            if (!ChunkObject(data, out chunks))
-            {
-                Log("Unable to chunk supplied data");
-                return false;
-            }
-
-            if (chunks == null || chunks.Count < 1)
-            {
-                Log("No chunks found in supplied data");
-                return false;
-            }
-
-            #endregion
-
-            #region Add-Object-Map
-
-            if (!_PoolSql.AddObjectChunks(objectName, containerName, containerIndexFile, data.Length, chunks))
-            {
-                Log("Unable to add object");
-                return false;
-            }
-
-            bool storageSuccess = true;
-            lock (_ChunkLock)
-            {
-                foreach (Chunk curr in chunks)
-                {
-                    if (!callbacks.WriteChunk(curr))
-                    {
-                        Log("Unable to store chunk " + curr.Key);
-                        storageSuccess = false;
-                        break;
-                    }
-                }
-
-                if (!storageSuccess)
-                {
-                    List<string> garbageCollectKeys;
-                    _PoolSql.DeleteObjectChunks(objectName, containerName, containerIndexFile, out garbageCollectKeys);
-
-                    if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
-                    {
-                        foreach (string key in garbageCollectKeys)
-                        {
-                            if (!callbacks.DeleteChunk(key))
-                            {
-                                Log("Unable to delete chunk: " + key);
-                            }
-                        }
-                    }
-                    return false;
-                }
-            }
-
-            return true;
-
-            #endregion
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            return StoreObject(objectName, containerName, containerIndexFile, callbacks, data.Length, DedupeCommon.BytesToStream(data), out chunks); 
         }
 
         /// <summary>
@@ -388,7 +312,8 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreOrReplaceObject(string objectName, string containerName, string containerIndexFile, byte[] data, out List<Chunk> chunks)
         {
-            return StoreOrReplaceObject(objectName, containerName, containerIndexFile, Callbacks, data, out chunks);
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            return StoreOrReplaceObject(objectName, containerName, containerIndexFile, Callbacks, data.Length, DedupeCommon.BytesToStream(data), out chunks);
         }
 
         /// <summary>
@@ -419,39 +344,8 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreOrReplaceObject(string objectName, string containerName, string containerIndexFile, CallbackMethods callbacks, byte[] data, out List<Chunk> chunks)
         {
-            #region Initialize
-
-            chunks = new List<Chunk>();
-            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
-            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
-            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
-            if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
-            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
-            if (data == null || data.Length < 1) return false;
-            objectName = DedupeCommon.SanitizeString(objectName);
-
-            #endregion
-
-            #region Delete-if-Exists
-
-            if (_PoolSql.ObjectExists(objectName, containerName, containerIndexFile))
-            {
-                Log("Object " + objectName + " already exists, deleting");
-                if (!DeleteObject(objectName, containerName, containerIndexFile))
-                {
-                    Log("Unable to delete existing object");
-                    return false;
-                }
-                else
-                {
-                    Log("Successfully deleted object for replacement");
-                }
-            }
-
-            #endregion
-
-            return StoreObject(objectName, containerName, containerIndexFile, callbacks, data, out chunks); 
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            return StoreOrReplaceObject(objectName, containerName, containerIndexFile, callbacks, data.Length, DedupeCommon.BytesToStream(data), out chunks); 
         }
 
         /// <summary>
@@ -536,7 +430,11 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool RetrieveObject(string objectName, string containerName, string containerIndexFile, out byte[] data)
         {
-            return RetrieveObject(objectName, containerName, containerIndexFile, Callbacks, out data);
+            long contentLength = 0;
+            Stream stream = null;
+            bool success = RetrieveObject(objectName, containerName, containerIndexFile, Callbacks, out contentLength, out stream);
+            data = DedupeCommon.StreamToBytes(stream);
+            return success;
         }
 
         /// <summary>
@@ -565,47 +463,11 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool RetrieveObject(string objectName, string containerName, string containerIndexFile, CallbackMethods callbacks, out byte[] data)
         {
-            data = null;
-            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-            if (String.IsNullOrEmpty(containerName)) throw new ArgumentNullException(nameof(containerName));
-            if (String.IsNullOrEmpty(containerIndexFile)) throw new ArgumentNullException(nameof(containerIndexFile));
-            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
-            if (callbacks.ReadChunk == null) throw new ArgumentException("ReadChunk callback must be specified.");
-            if (!File.Exists(containerIndexFile)) throw new FileNotFoundException();
-            objectName = DedupeCommon.SanitizeString(objectName);
-
-            ObjectMetadata md = null;
-
-            lock (_ChunkLock)
-            {
-                if (!_PoolSql.GetObjectMetadata(objectName, containerName, containerIndexFile, out md))
-                {
-                    Log("Unable to retrieve object metadata for object " + objectName);
-                    return false;
-                }
-
-                if (md.Chunks == null || md.Chunks.Count < 1)
-                {
-                    Log("No chunks returned");
-                    return false;
-                }
-
-                data = DedupeCommon.InitBytes(md.ContentLength, 0x00);
-
-                foreach (Chunk curr in md.Chunks)
-                {
-                    byte[] chunkData = callbacks.ReadChunk(curr.Key);
-                    if (chunkData == null || chunkData.Length < 1)
-                    {
-                        Log("Unable to read chunk " + curr.Key);
-                        return false;
-                    }
-
-                    Buffer.BlockCopy(chunkData, 0, data, (int)curr.Address, chunkData.Length);
-                }
-            }
-
-            return true;
+            long contentLength = 0;
+            Stream stream = null;
+            bool success = RetrieveObject(objectName, containerName, containerIndexFile, callbacks, out contentLength, out stream);
+            data = DedupeCommon.StreamToBytes(stream);
+            return success; 
         }
 
         /// <summary>

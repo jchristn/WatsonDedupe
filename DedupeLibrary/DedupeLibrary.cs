@@ -154,7 +154,8 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreObject(string objectName, byte[] data, out List<Chunk> chunks)
         {
-            return StoreObject(objectName, Callbacks, data, out chunks);
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            return StoreObject(objectName, Callbacks, data.Length, DedupeCommon.BytesToStream(data), out chunks);
         }
 
         /// <summary>
@@ -182,13 +183,7 @@ namespace WatsonDedupe
         public bool StoreObject(string objectName, CallbackMethods callbacks, byte[] data, out List<Chunk> chunks)
         {
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
-
-            MemoryStream ms = new MemoryStream();
-            ms.Write(data, 0, data.Length);
-            ms.Seek(0, SeekOrigin.Begin);
-            long contentLength = data.Length;
-
-            return StoreObject(objectName, callbacks, contentLength, ms, out chunks);
+            return StoreObject(objectName, callbacks, data.Length, DedupeCommon.BytesToStream(data), out chunks);
         }
 
         /// <summary>
@@ -294,7 +289,8 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreOrReplaceObject(string objectName, byte[] data, out List<Chunk> chunks)
         {
-            return StoreOrReplaceObject(objectName, Callbacks, data, out chunks); 
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            return StoreOrReplaceObject(objectName, Callbacks, data.Length, DedupeCommon.BytesToStream(data), out chunks);
         }
 
         /// <summary>
@@ -321,37 +317,8 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreOrReplaceObject(string objectName, CallbackMethods callbacks, byte[] data, out List<Chunk> chunks)
         {
-            #region Initialize
-
-            chunks = new List<Chunk>();
-            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
-            if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
-            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
-            if (data == null || data.Length < 1) return false;
-            objectName = DedupeCommon.SanitizeString(objectName);
-
-            #endregion
-
-            #region Delete-if-Exists
-
-            if (_Sqlite.ObjectExists(objectName))
-            {
-                Log("Object " + objectName + " already exists, deleting");
-                if (!DeleteObject(objectName))
-                {
-                    Log("Unable to delete existing object");
-                    return false;
-                }
-                else
-                {
-                    Log("Successfully deleted object for replacement");
-                }
-            }
-
-            #endregion
-
-            return StoreObject(objectName, callbacks, data, out chunks); 
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+            return StoreOrReplaceObject(objectName, callbacks, data.Length, DedupeCommon.BytesToStream(data), out chunks); 
         }
 
         /// <summary>
@@ -426,7 +393,11 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool RetrieveObject(string objectName, out byte[] data)
         {
-            return RetrieveObject(objectName, Callbacks, out data);
+            long contentLength = 0;
+            Stream stream = null;
+            bool success = RetrieveObject(objectName, Callbacks, out contentLength, out stream);
+            data = DedupeCommon.StreamToBytes(stream);
+            return success; 
         }
 
         /// <summary>
@@ -451,44 +422,11 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool RetrieveObject(string objectName, CallbackMethods callbacks, out byte[] data)
         {
-            data = null;
-            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
-            if (callbacks.ReadChunk == null) throw new ArgumentException("ReadChunk callback must be specified."); 
-            objectName = DedupeCommon.SanitizeString(objectName);
-
-            ObjectMetadata md = null;
-
-            lock (_ChunkLock)
-            {
-                if (!_Sqlite.GetObjectMetadata(objectName, out md))
-                {
-                    Log("Unable to retrieve object metadata for object " + objectName);
-                    return false;
-                }
-
-                if (md.Chunks == null || md.Chunks.Count < 1)
-                {
-                    Log("No chunks returned");
-                    return false;
-                }
-
-                data = DedupeCommon.InitBytes(md.ContentLength, 0x00);
-
-                foreach (Chunk curr in md.Chunks)
-                {
-                    byte[] chunkData = callbacks.ReadChunk(curr.Key);
-                    if (chunkData == null || chunkData.Length < 1)
-                    {
-                        Log("Unable to read chunk " + curr.Key);
-                        return false;
-                    }
-
-                    Buffer.BlockCopy(chunkData, 0, data, (int)curr.Address, chunkData.Length);
-                }
-            }
-
-            return true;
+            long contentLength = 0;
+            Stream stream = null;
+            bool success = RetrieveObject(objectName, callbacks, out contentLength, out stream);
+            data = DedupeCommon.StreamToBytes(stream);
+            return success; 
         }
 
         /// <summary>
