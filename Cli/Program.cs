@@ -173,7 +173,7 @@ namespace Cli
                             Console.WriteLine("  Number of chunks  : " + NumChunks);
                             Console.WriteLine("  Logical bytes     : " + LogicalBytes + " bytes");
                             Console.WriteLine("  Physical bytes    : " + PhysicalBytes + " bytes");
-                            Console.WriteLine("  Dedupe ratio      : " + Common.DecimalToString(DedupeRatioX) + "X, " + Common.DecimalToString(DedupeRatioPercent) + "%");
+                            Console.WriteLine("  Dedupe ratio      : " + DedupeCommon.DecimalToString(DedupeRatioX) + "X, " + DedupeCommon.DecimalToString(DedupeRatioPercent) + "%");
                             return;
                         }
                         else

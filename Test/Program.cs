@@ -20,7 +20,8 @@ namespace Test
             string userInput = "";
             string filename = "";
             string key = "";
-            byte[] data;
+            long contentLength = 0;
+            Stream stream = null; 
             List<Chunk> chunks;
             List<string> keys;
             ObjectMetadata md;
@@ -66,36 +67,53 @@ namespace Test
                         break;
 
                     case "store":
-                        filename = Common.InputString("Input filename:", null, false);
-                        key = Common.InputString("Object key:", null, false);
-                        data = File.ReadAllBytes(filename);
-                        if (Dedupe.StoreObject(key, data, out chunks))
+                        filename = DedupeCommon.InputString("Input filename:", null, false);
+                        key = DedupeCommon.InputString("Object key:", null, false);
+                        contentLength = GetContentLength(filename);
+                        using (FileStream fs = new FileStream(filename, FileMode.Open))
                         {
-                            if (chunks != null && chunks.Count > 0)
+                            if (Dedupe.StoreObject(key, contentLength, fs, out chunks))
                             {
-                                Console.WriteLine("MD5: " + Common.BytesToBase64(Common.Md5(data)));
-                                Console.WriteLine("Success: " + chunks.Count + " chunks");
+                                if (chunks != null && chunks.Count > 0)
+                                { 
+                                    Console.WriteLine("Success: " + chunks.Count + " chunks");
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Success (no chunks)");
+                                }
                             }
                             else
                             {
-                                Console.WriteLine("Success (no chunks)");
+                                Console.WriteLine("Failed");
                             }
-                        }
-                        else
-                        {
-                            Console.WriteLine("Failed");
                         }
                         break;
 
                     case "retrieve":
-                        key = Common.InputString("Object key:", null, false);
-                        filename = Common.InputString("Output filename:", null, false);
-                        if (Dedupe.RetrieveObject(key, out data))
+                        key = DedupeCommon.InputString("Object key:", null, false);
+                        filename = DedupeCommon.InputString("Output filename:", null, false);
+                        if (Dedupe.RetrieveObject(key, out contentLength, out stream))
                         {
-                            if (data != null && data.Length > 0)
+                            if (contentLength > 0)
                             {
-                                Console.WriteLine("MD5: " + Common.BytesToBase64(Common.Md5(data)));
-                                File.WriteAllBytes(filename, data);
+                                using (FileStream fs = new FileStream(filename, FileMode.OpenOrCreate))
+                                {
+                                    int bytesRead = 0;
+                                    long bytesRemaining = contentLength;
+                                    byte[] readBuffer = new byte[65536];
+
+                                    while (bytesRemaining > 0)
+                                    {
+                                        bytesRead = stream.Read(readBuffer, 0, readBuffer.Length);
+                                        if (bytesRead > 0)
+                                        {
+                                            fs.Write(readBuffer, 0, bytesRead);
+                                            bytesRemaining -= bytesRead;
+                                        }
+                                    }
+                                } 
+
                                 Console.WriteLine("Success");
                             }
                             else
@@ -110,7 +128,7 @@ namespace Test
                         break;
 
                     case "delete":
-                        key = Common.InputString("Object key:", null, false);
+                        key = DedupeCommon.InputString("Object key:", null, false);
                         if (Dedupe.DeleteObject(key))
                         {
                             Console.WriteLine("Success");
@@ -122,7 +140,7 @@ namespace Test
                         break;
 
                     case "metadata":
-                        key = Common.InputString("Object key:", null, false);
+                        key = DedupeCommon.InputString("Object key:", null, false);
                         if (Dedupe.RetrieveObjectMetadata(key, out md))
                         {
                             Console.WriteLine("Success");
@@ -145,7 +163,7 @@ namespace Test
                         break;
 
                     case "exists":
-                        key = Common.InputString("Object name:", null, false);
+                        key = DedupeCommon.InputString("Object name:", null, false);
                         if (Dedupe.ObjectExists(key))
                         {
                             Console.WriteLine("Object exists");
@@ -164,7 +182,7 @@ namespace Test
                             Console.WriteLine("  Number of chunks  : " + numChunks);
                             Console.WriteLine("  Logical bytes     : " + logicalBytes + " bytes");
                             Console.WriteLine("  Physical bytes    : " + physicalBytes + " bytes");
-                            Console.WriteLine("  Dedupe ratio      : " + Common.DecimalToString(dedupeRatioX) + "X, " + Common.DecimalToString(dedupeRatioPercent) + "%");
+                            Console.WriteLine("  Dedupe ratio      : " + DedupeCommon.DecimalToString(dedupeRatioX) + "X, " + DedupeCommon.DecimalToString(dedupeRatioPercent) + "%");
                             Console.WriteLine("");
                         }
                         else
@@ -225,6 +243,12 @@ namespace Test
 
             }
             return true;
+        }
+
+        static long GetContentLength(string filename)
+        {
+            FileInfo fi = new FileInfo(filename);
+            return fi.Length;
         }
     }
 }

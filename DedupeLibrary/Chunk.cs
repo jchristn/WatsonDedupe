@@ -69,7 +69,7 @@ namespace WatsonDedupe
             if (pos < 0) throw new ArgumentOutOfRangeException(nameof(pos));
             if (address < 0) throw new ArgumentOutOfRangeException(nameof(address));
 
-            Key = Common.SanitizeString(key);
+            Key = DedupeCommon.SanitizeString(key);
             Length = len;
             Position = pos;
             Address = address;
@@ -91,7 +91,7 @@ namespace WatsonDedupe
             if (address < 0) throw new ArgumentOutOfRangeException(nameof(Address));
             if (value == null || value.Length < 1) throw new ArgumentNullException(nameof(value));
 
-            Key = Common.SanitizeString(key);
+            Key = DedupeCommon.SanitizeString(key);
             Length = len;
             Position = pos;
             Address = address;

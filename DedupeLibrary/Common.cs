@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -10,7 +11,7 @@ namespace WatsonDedupe
     /// <summary>
     /// Commonly-used static methods.
     /// </summary>
-    public static class Common
+    public static class DedupeCommon
     {
         public static string SanitizeString(string s)
         {
@@ -161,6 +162,53 @@ namespace WatsonDedupe
             }
 
             return true;
+        }
+
+        public static byte[] AppendBytes(byte[] head, byte[] tail)
+        {
+            byte[] arrayCombined = new byte[head.Length + tail.Length];
+            Array.Copy(head, 0, arrayCombined, 0, head.Length);
+            Array.Copy(tail, 0, arrayCombined, head.Length, tail.Length);
+            return arrayCombined;
+        }
+
+        public static byte[] StreamToBytes(Stream input)
+        {
+            if (input == null) throw new ArgumentNullException(nameof(input));
+            if (!input.CanRead) throw new InvalidOperationException("Input stream is not readable");
+
+            byte[] buffer = new byte[16 * 1024];
+            using (MemoryStream ms = new MemoryStream())
+            {
+                int read;
+
+                while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    ms.Write(buffer, 0, read);
+                }
+
+                return ms.ToArray();
+            }
+        }
+
+        public static byte[] ReadBytesFromStream(Stream stream, long count, out long bytesRead)
+        {
+            bytesRead = 0;
+            byte[] data = new byte[count];
+
+            long bytesRemaining = count;
+
+            while (bytesRemaining > 0)
+            {
+                int bytesReadCurr = stream.Read(data, 0, data.Length);
+                if (bytesReadCurr > 0)
+                {
+                    bytesRead += bytesReadCurr;
+                    bytesRemaining -= bytesReadCurr;
+                }
+            }
+
+            return data;
         }
 
         public static void ClearCurrentLine()

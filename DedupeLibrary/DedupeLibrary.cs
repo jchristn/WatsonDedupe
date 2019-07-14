@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using SlidingWindow;
 
 namespace WatsonDedupe
 {
@@ -63,7 +64,7 @@ namespace WatsonDedupe
             if (readChunkMethod == null) throw new ArgumentNullException(nameof(readChunkMethod));
             if (deleteChunkMethod == null) throw new ArgumentNullException(nameof(deleteChunkMethod));
 
-            _IndexFile = Common.SanitizeString(indexFile);
+            _IndexFile = DedupeCommon.SanitizeString(indexFile);
 
             Callbacks = new CallbackMethods();
             Callbacks.WriteChunk = writeChunkMethod;
@@ -120,7 +121,7 @@ namespace WatsonDedupe
 
             if (File.Exists(indexFile)) throw new IOException("Index file already exists.");
 
-            _IndexFile = Common.SanitizeString(indexFile);
+            _IndexFile = DedupeCommon.SanitizeString(indexFile);
             _MinChunkSize = minChunkSize;
             _MaxChunkSize = maxChunkSize;
             _ShiftCount = shiftCount;
@@ -158,6 +159,19 @@ namespace WatsonDedupe
 
         /// <summary>
         /// Store an object in the deduplication index.
+        /// </summary>
+        /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
+        /// <param name="contentLength">The length of the data.</param>
+        /// <param name="stream">The stream containing the data.</param>
+        /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
+        /// <returns>True if successful.</returns>
+        public bool StoreObject(string objectName, long contentLength, Stream stream, out List<Chunk> chunks)
+        {
+            return StoreObject(objectName, Callbacks, contentLength, stream, out chunks);
+        }
+
+        /// <summary>
+        /// Store an object in the deduplication index.
         /// This method will use the callbacks supplied in the method signature.
         /// </summary>
         /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
@@ -167,6 +181,28 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool StoreObject(string objectName, CallbackMethods callbacks, byte[] data, out List<Chunk> chunks)
         {
+            if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
+
+            MemoryStream ms = new MemoryStream();
+            ms.Write(data, 0, data.Length);
+            ms.Seek(0, SeekOrigin.Begin);
+            long contentLength = data.Length;
+
+            return StoreObject(objectName, callbacks, contentLength, ms, out chunks);
+        }
+
+        /// <summary>
+        /// Store an object in the deduplication index.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="contentLength">The length of the data.</param>
+        /// <param name="stream">The stream containing the data.</param>
+        /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
+        /// <returns>True if successful.</returns>
+        public bool StoreObject(string objectName, CallbackMethods callbacks, long contentLength, Stream stream, out List<Chunk> chunks)
+        {
             #region Initialize
 
             chunks = new List<Chunk>();
@@ -174,57 +210,61 @@ namespace WatsonDedupe
             if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
             if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
             if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
-            if (data == null || data.Length < 1) return false;
-            objectName = Common.SanitizeString(objectName);
+            if (contentLength < 1) throw new ArgumentException("Content length must be at least one byte.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new ArgumentException("Cannot read from supplied stream.");
+            objectName = DedupeCommon.SanitizeString(objectName);
 
             if (_Sqlite.ObjectExists(objectName))
             {
-                if (DebugDedupe) Console.WriteLine("Object already exists");
+                Log("Object " + objectName + " already exists");
                 return false;
             }
+
+            bool garbageCollectionRequired = false;
 
             #endregion
 
             #region Chunk-Data
 
-            if (!ChunkObject(data, out chunks))
+            try
             {
-                if (DebugDedupe) Console.WriteLine("Unable to chunk supplied data");
-                return false;
-            }
-
-            if (chunks == null || chunks.Count < 1)
-            {
-                if (DebugDedupe) Console.WriteLine("No chunks found in supplied data");
-                return false;
-            }
-
-            #endregion
-
-            #region Add-Object-Map
-
-            lock (_ChunkLock)
-            {
-                if (!_Sqlite.AddObjectChunks(objectName, data.Length, chunks))
+                Func<Chunk, bool> processChunk = delegate (Chunk chunk)
                 {
-                    if (DebugDedupe) Console.WriteLine("Unable to add object");
+                    if (chunk == null) return false;
+
+                    lock (_ChunkLock)
+                    {
+                        if (!_Sqlite.AddObjectChunk(objectName, contentLength, chunk))
+                        {
+                            Log("Unable to add chunk key " + chunk.Key);
+                            garbageCollectionRequired = true;
+                            return false;
+                        } 
+
+                        if (!callbacks.WriteChunk(chunk))
+                        {
+                            Log("Unable to write chunk key " + chunk.Key);
+                            garbageCollectionRequired = true;
+                            return false;
+                        }
+                    }
+
+                    return true;
+                };
+
+                if (!ChunkStream(contentLength, stream, processChunk, out chunks))
+                {
+                    Log("Unable to chunk object " + objectName);
+                    garbageCollectionRequired = true;
                     return false;
                 }
-
-                bool storageSuccess = true;
-                foreach (Chunk curr in chunks)
+            }
+            finally
+            {
+                if (garbageCollectionRequired)
                 {
-                    if (!callbacks.WriteChunk(curr))
-                    {
-                        if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
-                        storageSuccess = false;
-                        break;
-                    }
-                }
-
-                if (!storageSuccess)
-                {
-                    List<string> garbageCollectKeys;
+                    List<string> garbageCollectKeys = new List<string>();
                     _Sqlite.DeleteObjectChunks(objectName, out garbageCollectKeys);
 
                     if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
@@ -233,17 +273,16 @@ namespace WatsonDedupe
                         {
                             if (!callbacks.DeleteChunk(key))
                             {
-                                if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
+                                Log("Unable to garbage collect chunk " + key);
                             }
                         }
                     }
-                    return false;
                 }
             }
 
-            return true;
-
             #endregion
+             
+            return true; 
         }
 
         /// <summary>
@@ -256,6 +295,19 @@ namespace WatsonDedupe
         public bool StoreOrReplaceObject(string objectName, byte[] data, out List<Chunk> chunks)
         {
             return StoreOrReplaceObject(objectName, Callbacks, data, out chunks); 
+        }
+
+        /// <summary>
+        /// Store an object within a container in the deduplication index if it doesn't already exist, or, replace the object if it does.
+        /// </summary>
+        /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
+        /// <param name="contentLength">The length of the data.</param>
+        /// <param name="stream">The stream containing the data.</param>
+        /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
+        /// <returns>True if successful.</returns>
+        public bool StoreOrReplaceObject(string objectName, long contentLength, Stream stream, out List<Chunk> chunks)
+        {
+            return StoreOrReplaceObject(objectName, Callbacks, contentLength, stream, out chunks);
         }
 
         /// <summary>
@@ -277,83 +329,75 @@ namespace WatsonDedupe
             if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
             if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
             if (data == null || data.Length < 1) return false;
-            objectName = Common.SanitizeString(objectName);
+            objectName = DedupeCommon.SanitizeString(objectName);
+
+            #endregion
+
+            #region Delete-if-Exists
 
             if (_Sqlite.ObjectExists(objectName))
             {
-                if (DebugDedupe) Console.WriteLine("Object already exists, deleting");
+                Log("Object " + objectName + " already exists, deleting");
                 if (!DeleteObject(objectName))
                 {
-                    if (DebugDedupe) Console.WriteLine("Unable to delete existing object");
+                    Log("Unable to delete existing object");
                     return false;
                 }
                 else
                 {
-                    if (DebugDedupe) Console.WriteLine("Successfully deleted object for replacement");
+                    Log("Successfully deleted object for replacement");
                 }
             }
 
             #endregion
 
-            #region Chunk-Data
+            return StoreObject(objectName, callbacks, data, out chunks); 
+        }
 
-            if (!ChunkObject(data, out chunks))
-            {
-                if (DebugDedupe) Console.WriteLine("Unable to chunk supplied data");
-                return false;
-            }
+        /// <summary>
+        /// Store an object within a container in the deduplication index if it doesn't already exist, or, replace the object if it does.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.  Must be unique in the index.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="contentLength">The length of the data.</param>
+        /// <param name="stream">The stream containing the data.</param>
+        /// <param name="chunks">The list of chunks identified during the deduplication operation.</param>
+        /// <returns>True if successful.</returns>
+        public bool StoreOrReplaceObject(string objectName, CallbackMethods callbacks, long contentLength, Stream stream, out List<Chunk> chunks)
+        {
+            #region Initialize
 
-            if (chunks == null || chunks.Count < 1)
-            {
-                if (DebugDedupe) Console.WriteLine("No chunks found in supplied data");
-                return false;
-            }
+            chunks = new List<Chunk>();
+            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.WriteChunk == null) throw new ArgumentException("WriteChunk callback must be specified.");
+            if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
+            if (stream == null) throw new ArgumentNullException(nameof(stream));
+            if (!stream.CanRead) throw new ArgumentException("Cannot read from supplied stream.");
+            objectName = DedupeCommon.SanitizeString(objectName);
 
             #endregion
 
-            #region Add-Object-Map
+            #region Delete-if-Exists
 
-            lock (_ChunkLock)
+            if (_Sqlite.ObjectExists(objectName))
             {
-                if (!_Sqlite.AddObjectChunks(objectName, data.Length, chunks))
+                Log("Object " + objectName + " already exists, deleting");
+                if (!DeleteObject(objectName))
                 {
-                    if (DebugDedupe) Console.WriteLine("Unable to add object");
+                    Log("Unable to delete existing object");
                     return false;
                 }
-
-                bool storageSuccess = true;
-                foreach (Chunk curr in chunks)
+                else
                 {
-                    if (!callbacks.WriteChunk(curr))
-                    {
-                        if (DebugDedupe) Console.WriteLine("Unable to store chunk " + curr.Key);
-                        storageSuccess = false;
-                        break;
-                    }
-                }
-
-                if (!storageSuccess)
-                {
-                    List<string> garbageCollectKeys;
-                    _Sqlite.DeleteObjectChunks(objectName, out garbageCollectKeys);
-
-                    if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
-                    {
-                        foreach (string key in garbageCollectKeys)
-                        {
-                            if (!callbacks.DeleteChunk(key))
-                            {
-                                if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
-                            }
-                        }
-                    }
-                    return false;
+                    Log("Successfully deleted object for replacement");
                 }
             }
 
-            return true;
-
             #endregion
+
+            return StoreObject(objectName, callbacks, contentLength, stream, out chunks); 
         }
 
         /// <summary>
@@ -366,7 +410,7 @@ namespace WatsonDedupe
         {
             md = null;
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-            objectName = Common.SanitizeString(objectName);
+            objectName = DedupeCommon.SanitizeString(objectName);
 
             lock (_ChunkLock)
             {
@@ -387,6 +431,18 @@ namespace WatsonDedupe
 
         /// <summary>
         /// Retrieve an object from the deduplication index.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="contentLength">The length of the data.</param>
+        /// <param name="stream">The stream containing the data.</param>
+        /// <returns>True if successful.</returns>
+        public bool RetrieveObject(string objectName, out long contentLength, out Stream stream)
+        {
+            return RetrieveObject(objectName, Callbacks, out contentLength, out stream);
+        }
+
+        /// <summary>
+        /// Retrieve an object from the deduplication index.
         /// This method will use the callbacks supplied in the method signature.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
@@ -399,7 +455,7 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
             if (callbacks.ReadChunk == null) throw new ArgumentException("ReadChunk callback must be specified."); 
-            objectName = Common.SanitizeString(objectName);
+            objectName = DedupeCommon.SanitizeString(objectName);
 
             ObjectMetadata md = null;
 
@@ -407,29 +463,84 @@ namespace WatsonDedupe
             {
                 if (!_Sqlite.GetObjectMetadata(objectName, out md))
                 {
-                    if (DebugDedupe) Console.WriteLine("Unable to retrieve object metadata");
+                    Log("Unable to retrieve object metadata for object " + objectName);
                     return false;
                 }
 
                 if (md.Chunks == null || md.Chunks.Count < 1)
                 {
-                    if (DebugDedupe) Console.WriteLine("No chunks returned");
+                    Log("No chunks returned");
                     return false;
                 }
 
-                data = Common.InitBytes(md.ContentLength, 0x00);
+                data = DedupeCommon.InitBytes(md.ContentLength, 0x00);
 
                 foreach (Chunk curr in md.Chunks)
                 {
                     byte[] chunkData = callbacks.ReadChunk(curr.Key);
                     if (chunkData == null || chunkData.Length < 1)
                     {
-                        if (DebugDedupe) Console.WriteLine("Unable to read chunk " + curr.Key);
+                        Log("Unable to read chunk " + curr.Key);
                         return false;
                     }
 
                     Buffer.BlockCopy(chunkData, 0, data, (int)curr.Address, chunkData.Length);
                 }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Retrieve an object from the deduplication index.
+        /// This method will use the callbacks supplied in the method signature.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="contentLength">The length of the data.</param>
+        /// <param name="stream">The stream containing the data.</param>
+        /// <returns>True if successful.</returns>
+        public bool RetrieveObject(string objectName, CallbackMethods callbacks, out long contentLength, out Stream stream)
+        {
+            stream = null;
+            contentLength = 0;
+            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.ReadChunk == null) throw new ArgumentException("ReadChunk callback must be specified.");
+            objectName = DedupeCommon.SanitizeString(objectName);
+
+            ObjectMetadata md = null;
+
+            lock (_ChunkLock)
+            {
+                if (!_Sqlite.GetObjectMetadata(objectName, out md))
+                {
+                    Log("Unable to retrieve object metadata for object " + objectName);
+                    return false;
+                }
+
+                if (md.Chunks == null || md.Chunks.Count < 1)
+                {
+                    Log("No chunks returned");
+                    return false;
+                }
+
+                stream = new MemoryStream();
+                 
+                foreach (Chunk curr in md.Chunks)
+                {
+                    byte[] chunkData = callbacks.ReadChunk(curr.Key);
+                    if (chunkData == null || chunkData.Length < 1)
+                    {
+                        Log("Unable to read chunk " + curr.Key);
+                        return false;
+                    }
+
+                    stream.Write(chunkData, 0, chunkData.Length);
+                    contentLength += chunkData.Length;
+                }
+
+                if (contentLength > 0) stream.Seek(0, SeekOrigin.Begin);
             }
 
             return true;
@@ -457,7 +568,7 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
             if (callbacks.DeleteChunk == null) throw new ArgumentException("DeleteChunk callback must be specified.");
-            objectName = Common.SanitizeString(objectName);
+            objectName = DedupeCommon.SanitizeString(objectName);
 
             List<string> garbageCollectChunks = null;
 
@@ -470,7 +581,7 @@ namespace WatsonDedupe
                     {
                         if (!callbacks.DeleteChunk(key))
                         {
-                            if (DebugDedupe) Console.WriteLine("Unable to delete chunk: " + key);
+                            Log("Unable to delete chunk: " + key);
                         }
                     }
                 }
@@ -547,7 +658,7 @@ namespace WatsonDedupe
             }
             else
             {
-                if (DebugDedupe) Console.WriteLine("MinChunkSize set to " + tempVal);
+                Log("MinChunkSize set to " + tempVal);
                 _MinChunkSize = Convert.ToInt32(tempVal);
             }
 
@@ -557,7 +668,7 @@ namespace WatsonDedupe
             }
             else
             {
-                if (DebugDedupe) Console.WriteLine("MaxChunkSize set to " + tempVal);
+                Log("MaxChunkSize set to " + tempVal);
                 _MaxChunkSize = Convert.ToInt32(tempVal);
             }
 
@@ -567,7 +678,7 @@ namespace WatsonDedupe
             }
             else
             {
-                if (DebugDedupe) Console.WriteLine("ShiftCount set to " + tempVal);
+                Log("ShiftCount set to " + tempVal);
                 _ShiftCount = Convert.ToInt32(tempVal);
             }
 
@@ -577,7 +688,7 @@ namespace WatsonDedupe
             }
             else
             {
-                if (DebugDedupe) Console.WriteLine("BoundaryCheckBytes set to " + tempVal);
+                Log("BoundaryCheckBytes set to " + tempVal);
                 _BoundaryCheckBytes = Convert.ToInt32(tempVal);
             }
         }
@@ -603,7 +714,7 @@ namespace WatsonDedupe
             if (data.Length <= _MinChunkSize)
             {
                 c = new Chunk(
-                    Common.BytesToBase64(Common.Sha256(data)),
+                    DedupeCommon.BytesToBase64(DedupeCommon.Sha256(data)),
                     data.Length,
                     0,
                     0,
@@ -630,22 +741,22 @@ namespace WatsonDedupe
             int chunksFound = 0;
             int bytesTotal = 0;
             
-            if (DebugDedupe) Console.WriteLine("Chunking " + data.Length + " bytes of data");
+            Log("Chunking " + data.Length + " bytes of data");
             while (currPosition < data.Length)
             {
-                byte[] md5Hash = Common.Md5(window);
+                byte[] md5Hash = DedupeCommon.Md5(window);
                 if (DebugDedupe)
                 {
-                    if (currPosition % 1000 == 0) Console.Write("Chunk start " + chunkStart + " window end " + currPosition + " hash: " + Common.BytesToBase64(md5Hash) + "\r");
+                    if (currPosition % 1000 == 0) Console.Write("Chunk start " + chunkStart + " window end " + currPosition + " hash: " + DedupeCommon.BytesToBase64(md5Hash) + "\r");
                 }
 
-                if (Common.IsZeroBytes(md5Hash, _BoundaryCheckBytes))
+                if (DedupeCommon.IsZeroBytes(md5Hash, _BoundaryCheckBytes))
                 {
                     #region New-Chunk-Identified
 
                     if (DebugDedupe)
                     {
-                        Common.ClearCurrentLine();
+                        DedupeCommon.ClearCurrentLine();
                         Console.Write
                             ("\rChunk identified from " + chunkStart + " to " + currPosition + " (" + (currPosition - chunkStart) + " bytes)");
                     }
@@ -656,7 +767,7 @@ namespace WatsonDedupe
 
                     // add to chunk list
                     c = new Chunk(
-                        Common.BytesToBase64(Common.Sha256(chunk)),
+                        DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
                         chunk.Length,
                         chunksFound,
                         chunkStart,
@@ -686,7 +797,7 @@ namespace WatsonDedupe
                         // end of data
                         if (DebugDedupe)
                         {
-                            Common.ClearCurrentLine();
+                            DedupeCommon.ClearCurrentLine();
                             Console.WriteLine("Less than MinChunkSize remaining, adding chunk (" + (data.Length - currPosition) + " bytes)");
                         }
 
@@ -695,7 +806,7 @@ namespace WatsonDedupe
 
                         // add to chunk list
                         c = new Chunk(
-                            Common.BytesToBase64(Common.Sha256(chunk)),
+                            DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
                             chunk.Length,
                             chunksFound,
                             currPosition,
@@ -729,7 +840,7 @@ namespace WatsonDedupe
 
                         // add to chunk list
                         c = new Chunk(
-                            Common.BytesToBase64(Common.Sha256(chunk)),
+                            DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
                             chunk.Length,
                             chunksFound,
                             chunkStart,
@@ -757,13 +868,13 @@ namespace WatsonDedupe
                             #region Less-Than-Min-Size-Remaining
 
                             // end of data
-                            if (DebugDedupe) Console.WriteLine("Less than MinChunkSize remaining, adding chunk (" + (data.Length - currPosition) + " bytes)");
+                            Log("Less than MinChunkSize remaining, adding chunk (" + (data.Length - currPosition) + " bytes)");
                             chunk = new byte[(data.Length - currPosition)];
                             Buffer.BlockCopy(data, currPosition, chunk, 0, (data.Length - currPosition));
 
                             // add to chunk list
                             c = new Chunk(
-                                Common.BytesToBase64(Common.Sha256(chunk)),
+                                DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
                                 chunk.Length,
                                 chunksFound,
                                 currPosition,
@@ -787,7 +898,7 @@ namespace WatsonDedupe
                         #region Shift-Window
 
                         // shift the window
-                        window = Common.ShiftLeft(window, _ShiftCount, 0x00);
+                        window = DedupeCommon.ShiftLeft(window, _ShiftCount, 0x00);
 
                         // add the next set of bytes to the window
                         if (currPosition + _ShiftCount > data.Length)
@@ -819,7 +930,7 @@ namespace WatsonDedupe
 
                 if (DebugDedupe)
                 {
-                    Common.ClearCurrentLine();
+                    DedupeCommon.ClearCurrentLine();
                     Console.WriteLine("\rChunk identified (end of input) from " + chunkStart + " to " + currPosition + " (" + (currPosition - chunkStart) + " bytes)");
                 }
 
@@ -829,7 +940,7 @@ namespace WatsonDedupe
 
                 // add to chunk list
                 c = new Chunk(
-                    Common.BytesToBase64(Common.Sha256(chunk)),
+                    DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
                     chunk.Length,
                     chunksFound,
                     chunkStart,
@@ -847,13 +958,129 @@ namespace WatsonDedupe
 
             if (DebugDedupe)
             {
-                Common.ClearCurrentLine();
+                DedupeCommon.ClearCurrentLine();
                 Console.WriteLine("Returning " + chunks.Count + " chunks (" + bytesTotal + " bytes)");
             }
 
             return true;
 
             #endregion
+        }
+
+        private bool ChunkStream(long contentLength, Stream stream, Func<Chunk, bool> processChunk, out List<Chunk> chunks)
+        {
+            #region Initialize
+
+            chunks = new List<Chunk>();
+            Chunk chunk = null;
+            long bytesRead = 0;
+            string key = null;
+
+            if (stream == null || !stream.CanRead || contentLength < 1) return false;
+
+            #endregion
+
+            #region Single-Chunk
+
+            if (contentLength <= _MinChunkSize)
+            {
+                byte[] chunkData = DedupeCommon.ReadBytesFromStream(stream, contentLength, out bytesRead);
+                key = DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunkData));
+                chunk = new Chunk(
+                    key,
+                    contentLength,
+                    0,
+                    0,
+                    chunkData);
+                chunks.Add(chunk);
+                return processChunk(chunk);
+            }
+
+            #endregion
+
+            #region Process-Sliding-Window
+
+            Streams streamWindow = new Streams(stream, contentLength, _MinChunkSize, _ShiftCount);
+            byte[] currChunk = null;   
+            long chunkPosition = 0;     // should only be set at the beginning of a new chunk
+
+            while (true)
+            {
+                byte[] newData = null;
+                bool finalChunk = false;
+
+                long tempPosition = 0;
+                byte[] window = streamWindow.GetNextChunk(out tempPosition, out newData, out finalChunk);
+                if (window == null) return true;
+                if (currChunk == null) chunkPosition = tempPosition;
+                
+                if (currChunk == null)
+                    currChunk = window; // starting a new chunk
+                else
+                    currChunk = DedupeCommon.AppendBytes(currChunk, newData); // append new data
+
+                byte[] md5Hash = DedupeCommon.Md5(window);
+                if (DedupeCommon.IsZeroBytes(md5Hash, _BoundaryCheckBytes)
+                    ||
+                    (currChunk.Length >= _MaxChunkSize))
+                {
+                    #region Chunk-Boundary
+                     
+                    key = DedupeCommon.BytesToBase64(DedupeCommon.Sha256(currChunk));
+                    chunk = new Chunk(
+                        key,
+                        currChunk.Length,
+                        chunks.Count,
+                        chunkPosition,
+                        currChunk);
+                    chunks.Add(chunk);
+                     
+                    if (!processChunk(chunk)) return false;
+
+                    chunk = null;
+                    currChunk = null;
+
+                    #endregion
+                }
+                else
+                { 
+                    // do nothing, continue; 
+                }
+
+                if (finalChunk)
+                {
+                    #region Final-Chunk
+
+                    if (chunk != null && currChunk != null)
+                    {
+                        key = DedupeCommon.BytesToBase64(DedupeCommon.Sha256(currChunk));
+                        chunk = new Chunk(
+                            key,
+                            currChunk.Length,
+                            chunks.Count,
+                            chunkPosition,
+                            currChunk);
+                        chunks.Add(chunk);
+                        
+                        if (!processChunk(chunk)) return false;
+
+                        chunk = null;
+                        currChunk = null;
+                        break;
+                    }
+
+                    #endregion
+                }
+            }
+
+            #endregion
+
+            return true; 
+        }
+
+        private void Log(string msg)
+        {
+            if (DebugDedupe) Console.WriteLine(msg);
         }
 
         #endregion

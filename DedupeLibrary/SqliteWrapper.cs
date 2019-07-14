@@ -111,8 +111,8 @@ namespace WatsonDedupe
             if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             if (String.IsNullOrEmpty(val)) throw new ArgumentNullException(nameof(val));
 
-            key = Common.SanitizeString(key);
-            val = Common.SanitizeString(val);
+            key = DedupeCommon.SanitizeString(key);
+            val = DedupeCommon.SanitizeString(val);
 
             string keyCheckQuery = "SELECT * FROM DedupeConfig WHERE Key = '" + key + "'";
             DataTable keyCheckResult;
@@ -147,7 +147,7 @@ namespace WatsonDedupe
             val = null;
             if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
-            key = Common.SanitizeString(key);
+            key = DedupeCommon.SanitizeString(key);
 
             string keyQuery = "SELECT Val FROM DedupeConfig WHERE Key = '" + key + "' LIMIT 1";
             DataTable result;
@@ -180,7 +180,7 @@ namespace WatsonDedupe
         {
             if (String.IsNullOrEmpty(chunkKey)) return false;
 
-            chunkKey = Common.SanitizeString(chunkKey);
+            chunkKey = DedupeCommon.SanitizeString(chunkKey);
 
             string query = "SELECT * FROM ObjectMap WHERE ChunkKey = '" + chunkKey + "' LIMIT 1";
             DataTable result;
@@ -205,7 +205,7 @@ namespace WatsonDedupe
         {
             if (String.IsNullOrEmpty(objectName)) return false;
 
-            objectName = Common.SanitizeString(objectName);
+            objectName = DedupeCommon.SanitizeString(objectName);
 
             string query = "SELECT * FROM ObjectMap WHERE Name = '" + objectName + "' LIMIT 1";
             DataTable result;
@@ -248,19 +248,57 @@ namespace WatsonDedupe
         }
 
         /// <summary>
+        /// Add chunk from an object to the index.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="totalLen">The total length of the object.</param>
+        /// <param name="chunk">Chunk from the object..</param>
+        /// <returns>True if successful.</returns>
+        public bool AddObjectChunk(string objectName, long totalLen, Chunk chunk)
+        {
+            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (totalLen < 1) throw new ArgumentException("Total length must be greater than zero.");
+            if (chunk == null) throw new ArgumentNullException(nameof(chunk));
+
+            objectName = DedupeCommon.SanitizeString(objectName);
+
+            if (ObjectExists(objectName)) return false;
+
+            DataTable result = null;
+            string query = AddObjectChunkQuery(objectName, totalLen, chunk);
+
+            lock (_ObjectLock)
+            { 
+                if (!Query(query, out result))
+                {
+                    if (_Debug) Console.WriteLine("Insert query failed: " + query);
+                    return false;
+                } 
+                 
+                if (!IncrementChunkRefcount(chunk.Key, chunk.Length))
+                {
+                    if (_Debug) Console.WriteLine("Unable to increment refcount for chunk: " + chunk.Key);
+                    return false;
+                } 
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// Add chunks from an object to the index.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>
         /// <param name="totalLen">The total length of the object.</param>
         /// <param name="chunks">The chunks from the object.</param>
         /// <returns>True if successful.</returns>
-        public bool AddObjectChunks(string objectName, int totalLen, List<Chunk> chunks)
+        public bool AddObjectChunks(string objectName, long totalLen, List<Chunk> chunks)
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
             if (totalLen < 1) throw new ArgumentException("Total length must be greater than zero.");
             if (chunks == null || chunks.Count < 1) throw new ArgumentException("No chunk data supplied.");
 
-            objectName = Common.SanitizeString(objectName);
+            objectName = DedupeCommon.SanitizeString(objectName);
 
             if (ObjectExists(objectName)) return false;
 
@@ -287,10 +325,10 @@ namespace WatsonDedupe
                     }
                 }
             }
-            
+
             return true;
         }
-         
+
         /// <summary>
         /// Retrieve metadata for a given object.
         /// </summary>
@@ -301,7 +339,7 @@ namespace WatsonDedupe
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
 
-            objectName = Common.SanitizeString(objectName);
+            objectName = DedupeCommon.SanitizeString(objectName);
             metadata = null;
 
             string query = "SELECT * FROM ObjectMap WHERE Name = '" + objectName + "'";
@@ -329,7 +367,7 @@ namespace WatsonDedupe
             garbageCollectChunks = new List<string>();
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
 
-            objectName = Common.SanitizeString(objectName);
+            objectName = DedupeCommon.SanitizeString(objectName);
 
             string selectQuery = "SELECT * FROM ObjectMap WHERE Name = '" + objectName + "'";
             string deleteObjectMapQuery = "DELETE FROM ObjectMap WHERE Name = '" + objectName + "'";
@@ -375,7 +413,7 @@ namespace WatsonDedupe
         {
             if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
 
-            chunkKey = Common.SanitizeString(chunkKey);
+            chunkKey = DedupeCommon.SanitizeString(chunkKey);
 
             string selectQuery = "";
             string updateQuery = "";
@@ -438,7 +476,7 @@ namespace WatsonDedupe
             garbageCollect = false;
             if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
 
-            chunkKey = Common.SanitizeString(chunkKey);
+            chunkKey = DedupeCommon.SanitizeString(chunkKey);
 
             string selectQuery = "";
             string updateQuery = "";
@@ -647,7 +685,31 @@ namespace WatsonDedupe
             }
         }
 
-        private List<string> BatchAddObjectChunksQuery(string objectName, int totalLen, List<Chunk> chunks)
+        private string AddObjectChunkQuery(string objectName, long totalLen, Chunk chunk)
+        {
+            string query =
+                "INSERT INTO ObjectMap " +
+                "(" +
+                "  Name, " +
+                "  ContentLength, " +
+                "  ChunkKey, " +
+                "  ChunkLength, " +
+                "  ChunkPosition, " +
+                "  ChunkAddress) " +
+                "VALUES " +
+                "(" +
+                "  '" + DedupeCommon.SanitizeString(objectName) + "', " +
+                "  '" + totalLen + "', " +
+                "  '" + DedupeCommon.SanitizeString(chunk.Key) + "', " +
+                "  '" + chunk.Length + "', " +
+                "  '" + chunk.Position + "', " +
+                "  '" + chunk.Address + "'" +
+                ")"; 
+
+            return query;
+        }
+
+        private List<string> BatchAddObjectChunksQuery(string objectName, long totalLen, List<Chunk> chunks)
         {
             if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
 
@@ -675,7 +737,7 @@ namespace WatsonDedupe
                             "(" +
                             "'" + objectName + "', " +
                             "'" + totalLen + "', " +
-                            "'" + Common.SanitizeString(chunks[i + currPosition].Key) + "', " +
+                            "'" + DedupeCommon.SanitizeString(chunks[i + currPosition].Key) + "', " +
                             "'" + chunks[i + currPosition].Length + "', " +
                             "'" + chunks[i + currPosition].Position + "', " +
                             "'" + chunks[i + currPosition].Address + "'" +
@@ -698,7 +760,7 @@ namespace WatsonDedupe
                             "(" +
                             "'" + objectName + "', " +
                             "'" + totalLen + "', " +
-                            "'" + Common.SanitizeString(chunks[i + currPosition].Key) + "', " +
+                            "'" + DedupeCommon.SanitizeString(chunks[i + currPosition].Key) + "', " +
                             "'" + chunks[i + currPosition].Length + "', " +
                             "'" + chunks[i + currPosition].Position + "', " +
                             "'" + chunks[i + currPosition].Address + "'" +
@@ -719,14 +781,6 @@ namespace WatsonDedupe
             return ret;
         }
 
-        #endregion
-
-        #region Public-Static-Methods
-
-        #endregion
-
-        #region Private-Static-Methods
-
-        #endregion
+        #endregion 
     }
 }
