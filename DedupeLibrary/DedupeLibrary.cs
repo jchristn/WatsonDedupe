@@ -48,7 +48,7 @@ namespace WatsonDedupe
         #region Constructor
 
         /// <summary>
-        /// Initialize from an existing index.
+        /// Initialize an existing index.
         /// </summary>
         /// <param name="indexFile">Path and filename.</param>
         /// <param name="writeChunkMethod">Method to call to write a chunk to storage.</param>
@@ -110,7 +110,7 @@ namespace WatsonDedupe
             if (maxChunkSize % 8 != 0) throw new ArgumentException("Value for maxChunkSize must be evenly divisible by 8.");
             if (minChunkSize % 64 != 0) throw new ArgumentException("Value for minChunkSize must be evenly divisible by 64.");
             if (maxChunkSize % 64 != 0) throw new ArgumentException("Value for maxChunkSize must be evenly divisible by 64.");
-            if (minChunkSize < 128) throw new ArgumentOutOfRangeException("Value for minChunkSize must be 128 or greater.");
+            if (minChunkSize < 1024) throw new ArgumentOutOfRangeException("Value for minChunkSize must be 256 or greater.");
             if (maxChunkSize <= minChunkSize) throw new ArgumentOutOfRangeException("Value for maxChunkSize must be greater than minChunkSize and " + (8 * minChunkSize) + " or less.");
             if (maxChunkSize < (8 * minChunkSize)) throw new ArgumentOutOfRangeException("Value for maxChunkSize must be " + (8 * minChunkSize) + " or greater.");
             if (shiftCount > minChunkSize) throw new ArgumentOutOfRangeException("Value for shiftCount must be less than or equal to minChunkSize.");
@@ -639,272 +639,7 @@ namespace WatsonDedupe
             _Sqlite.AddConfigData("boundary_check_bytes", _BoundaryCheckBytes.ToString());
             _Sqlite.AddConfigData("index_per_object", "false");
         }
-
-        private bool ChunkObject(byte[] data, out List<Chunk> chunks)
-        {
-            #region Initialize
-
-            chunks = new List<Chunk>();
-            Chunk c;
-
-            if (data == null || data.Length < 1) return false;
-
-            if (data.Length <= _MinChunkSize)
-            {
-                c = new Chunk(
-                    DedupeCommon.BytesToBase64(DedupeCommon.Sha256(data)),
-                    data.Length,
-                    0,
-                    0,
-                    data);
-                chunks.Add(c);
-                return true;
-            }
-
-            int currPosition = 0;
-            int chunkStart = 0;
-            byte[] window = new byte[_MinChunkSize];
-
-            #endregion
-
-            #region Setup-First-Window
-
-            Buffer.BlockCopy(data, 0, window, 0, _MinChunkSize);
-            currPosition = _MinChunkSize;
-
-            #endregion
-
-            #region Process
-
-            int chunksFound = 0;
-            int bytesTotal = 0;
-            
-            Log("Chunking " + data.Length + " bytes of data");
-            while (currPosition < data.Length)
-            {
-                byte[] md5Hash = DedupeCommon.Md5(window);
-                if (DebugDedupe)
-                {
-                    if (currPosition % 1000 == 0) Console.Write("Chunk start " + chunkStart + " window end " + currPosition + " hash: " + DedupeCommon.BytesToBase64(md5Hash) + "\r");
-                }
-
-                if (DedupeCommon.IsZeroBytes(md5Hash, _BoundaryCheckBytes))
-                {
-                    #region New-Chunk-Identified
-
-                    if (DebugDedupe)
-                    {
-                        DedupeCommon.ClearCurrentLine();
-                        Console.Write
-                            ("\rChunk identified from " + chunkStart + " to " + currPosition + " (" + (currPosition - chunkStart) + " bytes)");
-                    }
-
-                    // create chunk
-                    byte[] chunk = new byte[(currPosition - chunkStart)];
-                    Buffer.BlockCopy(data, chunkStart, chunk, 0, (currPosition - chunkStart));
-
-                    // add to chunk list
-                    c = new Chunk(
-                        DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
-                        chunk.Length,
-                        chunksFound,
-                        chunkStart,
-                        chunk);
-                    chunks.Add(c);
-                    chunksFound++;
-                    bytesTotal += (currPosition - chunkStart);
-
-                    chunkStart = currPosition;
-
-                    // initialize new window
-                    if (data.Length - currPosition >= _MinChunkSize)
-                    {
-                        #region Min-Size-or-More-Remaining
-
-                        window = new byte[_MinChunkSize];
-                        Buffer.BlockCopy(data, currPosition, window, 0, _MinChunkSize);
-                        currPosition += _MinChunkSize;
-                        continue;
-
-                        #endregion
-                    }
-                    else
-                    {
-                        #region Less-Than-Min-Size-Remaining
-
-                        // end of data
-                        if (DebugDedupe)
-                        {
-                            DedupeCommon.ClearCurrentLine();
-                            Console.WriteLine("Less than MinChunkSize remaining, adding chunk (" + (data.Length - currPosition) + " bytes)");
-                        }
-
-                        chunk = new byte[(data.Length - currPosition)];
-                        Buffer.BlockCopy(data, currPosition, chunk, 0, (data.Length - currPosition));
-
-                        // add to chunk list
-                        c = new Chunk(
-                            DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
-                            chunk.Length,
-                            chunksFound,
-                            currPosition,
-                            chunk);
-                        chunks.Add(c);
-                        chunksFound++;
-                        bytesTotal += (data.Length - currPosition);
-
-                        window = null;
-
-                        // end processing
-                        break;
-
-                        #endregion
-                    }
-
-                    #endregion
-                }
-                else
-                {
-                    #region Not-a-Chunk-Boundary
-
-                    if ((currPosition - chunkStart) >= _MaxChunkSize)
-                    {
-                        #region Max-Size-Reached
-
-                        // create chunk
-                        byte[] chunk = new byte[(currPosition - chunkStart)];
-                        Buffer.BlockCopy(data, chunkStart, chunk, 0, (currPosition - chunkStart));
-                        // if (Debug) Console.WriteLine("chunk identified due to max size from " + chunk_start + " to " + curr_pos + " (" + (curr_pos - chunk_start) + " bytes)");
-
-                        // add to chunk list
-                        c = new Chunk(
-                            DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
-                            chunk.Length,
-                            chunksFound,
-                            chunkStart,
-                            chunk);
-                        chunks.Add(c);
-                        chunksFound++;
-                        bytesTotal += (currPosition - chunkStart);
-
-                        chunkStart = currPosition;
-
-                        // initialize new window
-                        if (data.Length - currPosition >= _MinChunkSize)
-                        {
-                            #region Min-Size-or-More-Remaining
-
-                            window = new byte[_MinChunkSize];
-                            Buffer.BlockCopy(data, currPosition, window, 0, _MinChunkSize);
-                            currPosition += _MinChunkSize;
-                            continue;
-
-                            #endregion
-                        }
-                        else
-                        {
-                            #region Less-Than-Min-Size-Remaining
-
-                            // end of data
-                            Log("Less than MinChunkSize remaining, adding chunk (" + (data.Length - currPosition) + " bytes)");
-                            chunk = new byte[(data.Length - currPosition)];
-                            Buffer.BlockCopy(data, currPosition, chunk, 0, (data.Length - currPosition));
-
-                            // add to chunk list
-                            c = new Chunk(
-                                DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
-                                chunk.Length,
-                                chunksFound,
-                                currPosition,
-                                chunk);
-                            chunks.Add(c);
-                            chunksFound++;
-                            bytesTotal += (data.Length - currPosition);
-
-                            window = null;
-
-                            // end processing
-                            break;
-
-                            #endregion
-                        }
-
-                        #endregion
-                    }
-                    else
-                    {
-                        #region Shift-Window
-
-                        // shift the window
-                        window = DedupeCommon.ShiftLeft(window, _ShiftCount, 0x00);
-
-                        // add the next set of bytes to the window
-                        if (currPosition + _ShiftCount > data.Length)
-                        {
-                            //
-                            // set current position to the end and break
-                            //
-                            currPosition = data.Length;
-                            break;
-                        }
-                        else
-                        {
-                            Buffer.BlockCopy(data, currPosition, window, (_MinChunkSize - _ShiftCount), _ShiftCount);
-                        }
-
-                        // increment the current position
-                        currPosition = currPosition + _ShiftCount;
-
-                        #endregion
-                    }
-
-                    #endregion
-                }
-            }
-
-            if (window != null)
-            {
-                #region Last-Chunk
-
-                if (DebugDedupe)
-                {
-                    DedupeCommon.ClearCurrentLine();
-                    Console.WriteLine("\rChunk identified (end of input) from " + chunkStart + " to " + currPosition + " (" + (currPosition - chunkStart) + " bytes)");
-                }
-
-                // if (Debug) Console.WriteLine("adding leftover chunk (" + (data.Length - chunk_start) + " bytes)");
-                byte[] chunk = new byte[(data.Length - chunkStart)];
-                Buffer.BlockCopy(data, chunkStart, chunk, 0, (data.Length - chunkStart));
-
-                // add to chunk list
-                c = new Chunk(
-                    DedupeCommon.BytesToBase64(DedupeCommon.Sha256(chunk)),
-                    chunk.Length,
-                    chunksFound,
-                    chunkStart,
-                    chunk);
-                chunks.Add(c);
-                chunksFound++;
-                bytesTotal += (currPosition - chunkStart);
-
-                #endregion
-            }
-
-            #endregion
-
-            #region Respond
-
-            if (DebugDedupe)
-            {
-                DedupeCommon.ClearCurrentLine();
-                Console.WriteLine("Returning " + chunks.Count + " chunks (" + bytesTotal + " bytes)");
-            }
-
-            return true;
-
-            #endregion
-        }
-
+         
         private bool ChunkStream(long contentLength, Stream stream, Func<Chunk, bool> processChunk, out List<Chunk> chunks)
         {
             #region Initialize
@@ -951,11 +686,18 @@ namespace WatsonDedupe
                 byte[] window = streamWindow.GetNextChunk(out tempPosition, out newData, out finalChunk);
                 if (window == null) return true;
                 if (currChunk == null) chunkPosition = tempPosition;
-                
+
                 if (currChunk == null)
-                    currChunk = window; // starting a new chunk
+                {
+                    // starting a new chunk
+                    currChunk = new byte[window.Length];
+                    Buffer.BlockCopy(window, 0, currChunk, 0, window.Length);
+                }
                 else
-                    currChunk = DedupeCommon.AppendBytes(currChunk, newData); // append new data
+                {
+                    // append new data
+                    currChunk = DedupeCommon.AppendBytes(currChunk, newData);
+                }
 
                 byte[] md5Hash = DedupeCommon.Md5(window);
                 if (DedupeCommon.IsZeroBytes(md5Hash, _BoundaryCheckBytes)
@@ -971,12 +713,15 @@ namespace WatsonDedupe
                         chunks.Count,
                         chunkPosition,
                         currChunk);
+
+                    if (!processChunk(chunk)) return false;
+                    chunk.Value = null;
                     chunks.Add(chunk);
                      
-                    if (!processChunk(chunk)) return false;
-
                     chunk = null;
                     currChunk = null;
+
+                    streamWindow.AdvanceToNewChunk();
 
                     #endregion
                 }
@@ -989,7 +734,7 @@ namespace WatsonDedupe
                 {
                     #region Final-Chunk
 
-                    if (chunk != null && currChunk != null)
+                    if (currChunk != null)
                     {
                         key = DedupeCommon.BytesToBase64(DedupeCommon.Sha256(currChunk));
                         chunk = new Chunk(
@@ -998,10 +743,11 @@ namespace WatsonDedupe
                             chunks.Count,
                             chunkPosition,
                             currChunk);
-                        chunks.Add(chunk);
-                        
-                        if (!processChunk(chunk)) return false;
 
+                        if (!processChunk(chunk)) return false;
+                        chunk.Value = null;
+                        chunks.Add(chunk);
+                         
                         chunk = null;
                         currChunk = null;
                         break;

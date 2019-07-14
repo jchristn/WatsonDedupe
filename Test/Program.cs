@@ -11,8 +11,8 @@ namespace Test
     class Program
     {
         static DedupeLibrary Dedupe;
-        static bool DebugDedupe = false;
-        static bool DebugSql = false;
+        static bool DebugDedupe = true;
+        static bool DebugSql = true;
 
         static void Main(string[] args)
         {
@@ -193,21 +193,20 @@ namespace Test
 
                     default:
                         break;
-                }
-
+                } 
             }
         }
 
         static void Initialize()
         {
             if (!Directory.Exists("Chunks")) Directory.CreateDirectory("Chunks");
-            if (File.Exists("Test.idx"))
+            if (File.Exists("Test.db"))
             {
-                Dedupe = new DedupeLibrary("Test.idx", WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                Dedupe = new DedupeLibrary("Test.db", WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
             }
             else
             {
-                Dedupe = new DedupeLibrary("Test.idx", 1024, 32768, 64, 2, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                Dedupe = new DedupeLibrary("Test.db", 2048, 16384, 64, 2, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
             }
         }
 

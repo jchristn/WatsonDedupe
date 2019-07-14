@@ -261,9 +261,7 @@ namespace WatsonDedupe
             if (chunk == null) throw new ArgumentNullException(nameof(chunk));
 
             objectName = DedupeCommon.SanitizeString(objectName);
-
-            if (ObjectExists(objectName)) return false;
-
+             
             DataTable result = null;
             string query = AddObjectChunkQuery(objectName, totalLen, chunk);
 
