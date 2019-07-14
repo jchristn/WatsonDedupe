@@ -11,6 +11,12 @@ Self-contained C# library for data deduplication using System.Data.Sqlite and ta
 
 ![alt tag](https://github.com/jchristn/WatsonDedupe/blob/master/assets/diagram_half.png)
 
+## New in v1.3.x
+
+- Better support for large files with APIs for streams
+- Moved internal chunking operations to use streams for both byte arrays and streams
+- Removed the XL projects
+
 ## Help and Support
 
 Please contact me or file an issue here if you encounter any problems with the library or have suggestions! 
@@ -162,3 +168,29 @@ Recommended settings for most environments (min, max, shift, boundary):
 
 - For small file environments, use 1024, 8192, 64, and 2
 - For large file environments, use 32768, 262144, 512, and 2 
+
+## Version History
+
+v1.2.x
+
+- Bugfixes and code consolidation
+- Configurable callbacks to better support custom/contextual read/write/delete behavior
+
+v1.1.x
+
+- Bugfixes and code consolidation
+- ObjectMetadata class to simplify code
+- Added chunk exists method
+
+v1.0.x
+
+- Initial release
+- Added debugging for both dedupe and SQLite database calls
+- Added DedupeLibraryXL project for multiple containers (databases) over a single chunk repository
+- Added delete container API
+- Added import container index API
+- Added store or replace object API
+- Added locking mechanisms for correctness
+- Added backup APIs
+- Retarget to .NET Core and .NET Framework
+- Migrated from Mono.Data.Sqlite to System.Data.Sqlite

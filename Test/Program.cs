@@ -206,7 +206,8 @@ namespace Test
             }
             else
             {
-                Dedupe = new DedupeLibrary("Test.db", 2048, 16384, 64, 2, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                // Dedupe = new DedupeLibrary("Test.db", 2048, 16384, 64, 2, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                Dedupe = new DedupeLibrary("Test.db", 32768, 262144, 2048, 2, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
             }
         }
 
