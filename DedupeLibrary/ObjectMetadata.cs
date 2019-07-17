@@ -16,12 +16,7 @@ namespace WatsonDedupe
         /// Object map ID.
         /// </summary>
         public int ObjectMapId { get; set; }
-
-        /// <summary>
-        /// The name of the container (null in DedupeLibrary, populated in DedupeLibraryXL).
-        /// </summary>
-        public string ContainerName { get; set; }
-
+         
         /// <summary>
         /// The name of the object.
         /// </summary>
@@ -78,10 +73,7 @@ namespace WatsonDedupe
 
             if (row.Table.Columns.Contains("ObjectMapId") && row["ObjectMapId"] != null && row["ObjectMapId"] != DBNull.Value)
                 ret.ObjectMapId = Convert.ToInt32(row["ObjectMapId"]);
-
-            if (row.Table.Columns.Contains("ContainerName") && row["ContainerName"] != null && row["ContainerName"] != DBNull.Value)
-                ret.ContainerName = row["ContainerName"].ToString();
-
+             
             if (row.Table.Columns.Contains("Name") && row["Name"] != null && row["Name"] != DBNull.Value)
                 ret.Name = row["Name"].ToString();
 
@@ -130,8 +122,7 @@ namespace WatsonDedupe
         {
             string ret =
                 "----" + Environment.NewLine +
-                "  ObjectMapId    : " + ObjectMapId + Environment.NewLine +
-                "  ContainerName  : " + ContainerName + Environment.NewLine +
+                "  ObjectMapId    : " + ObjectMapId + Environment.NewLine + 
                 "  Name           : " + Name + Environment.NewLine +
                 "  ContentLength  : " + ContentLength + Environment.NewLine +
                 "  ChunkCount     : " + ChunkCount + Environment.NewLine +
@@ -142,7 +133,7 @@ namespace WatsonDedupe
                 ret += "  Chunks         : " + Environment.NewLine;
                 foreach (Chunk curr in Chunks)
                 {
-                    ret += "    " + curr.Key + Environment.NewLine;
+                    ret += "    " + curr.Position + ": " + curr.Key + " [" + curr.Length + "B address " + curr.Address + "]" + Environment.NewLine;
                 }
             }
             else

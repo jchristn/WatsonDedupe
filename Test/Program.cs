@@ -10,9 +10,9 @@ namespace Test
 {
     class Program
     {
-        static DedupeLibrary Dedupe;
-        static bool DebugDedupe = true;
-        static bool DebugSql = true;
+        static DedupeLibrary _Dedupe;
+        static bool _DebugDedupe = true;
+        static bool _DebugSql = true;
 
         static void Main(string[] args)
         {
@@ -72,7 +72,7 @@ namespace Test
                         contentLength = GetContentLength(filename);
                         using (FileStream fs = new FileStream(filename, FileMode.Open))
                         {
-                            if (Dedupe.StoreObject(key, contentLength, fs, out chunks))
+                            if (_Dedupe.StoreObject(key, contentLength, fs, out chunks))
                             {
                                 if (chunks != null && chunks.Count > 0)
                                 { 
@@ -93,7 +93,7 @@ namespace Test
                     case "retrieve":
                         key = DedupeCommon.InputString("Object key:", null, false);
                         filename = DedupeCommon.InputString("Output filename:", null, false);
-                        if (Dedupe.RetrieveObject(key, out contentLength, out stream))
+                        if (_Dedupe.RetrieveObject(key, out contentLength, out stream))
                         {
                             if (contentLength > 0)
                             {
@@ -129,7 +129,7 @@ namespace Test
 
                     case "delete":
                         key = DedupeCommon.InputString("Object key:", null, false);
-                        if (Dedupe.DeleteObject(key))
+                        if (_Dedupe.DeleteObject(key))
                         {
                             Console.WriteLine("Success");
                         }
@@ -141,7 +141,7 @@ namespace Test
 
                     case "metadata":
                         key = DedupeCommon.InputString("Object key:", null, false);
-                        if (Dedupe.RetrieveObjectMetadata(key, out md))
+                        if (_Dedupe.RetrieveObjectMetadata(key, true, out md))
                         {
                             Console.WriteLine("Success");
                             Console.WriteLine(md.ToString());
@@ -153,7 +153,7 @@ namespace Test
                         break;
 
                     case "list":
-                        Dedupe.ListObjects(out keys);
+                        _Dedupe.ListObjects(out keys);
                         if (keys != null && keys.Count > 0)
                         {
                             Console.WriteLine("Objects: ");
@@ -164,7 +164,7 @@ namespace Test
 
                     case "exists":
                         key = DedupeCommon.InputString("Object name:", null, false);
-                        if (Dedupe.ObjectExists(key))
+                        if (_Dedupe.ObjectExists(key))
                         {
                             Console.WriteLine("Object exists");
                         }
@@ -175,7 +175,7 @@ namespace Test
                         break;
 
                     case "stats":
-                        if (Dedupe.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent))
+                        if (_Dedupe.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent))
                         {
                             Console.WriteLine("Statistics:");
                             Console.WriteLine("  Number of objects : " + numObjects);
@@ -202,12 +202,12 @@ namespace Test
             if (!Directory.Exists("Chunks")) Directory.CreateDirectory("Chunks");
             if (File.Exists("Test.db"))
             {
-                Dedupe = new DedupeLibrary("Test.db", WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                _Dedupe = new DedupeLibrary("Test.db", WriteChunk, ReadChunk, DeleteChunk, _DebugDedupe, _DebugSql);
             }
             else
             {
                 // Dedupe = new DedupeLibrary("Test.db", 2048, 16384, 64, 2, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
-                Dedupe = new DedupeLibrary("Test.db", 32768, 262144, 2048, 2, WriteChunk, ReadChunk, DeleteChunk, DebugDedupe, DebugSql);
+                _Dedupe = new DedupeLibrary("Test.db", 32768, 262144, 2048, 2, WriteChunk, ReadChunk, DeleteChunk, _DebugDedupe, _DebugSql);
             }
         }
 

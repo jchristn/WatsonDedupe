@@ -11,11 +11,10 @@ Self-contained C# library for data deduplication using System.Data.Sqlite and ta
 
 ![alt tag](https://github.com/jchristn/WatsonDedupe/blob/master/assets/diagram_half.png)
 
-## New in v1.3.x
+## New in v1.4.x
 
-- Better support for large files with APIs for streams
-- Moved internal chunking operations to use streams for both byte arrays and streams
-- Removed the XL projects
+- Support for external database providers (use your own database)
+- Internal refactor
 
 ## Help and Support
 
@@ -33,6 +32,8 @@ The Watson Dedupe library will take an incoming byte array (which you give an ob
 
 Refer to the Test project which will help you exercise DedupeLibrary.  A test GUI app also exists (see https://github.com/jchristn/WatsonDedupeUI).
 
+For an example of how to use WatsonDedupe using your own database, refer to the ```TestExternal``` project along with the sample implementation of the ```WatsonDedupe.Database.DbProvider``` class found in ```Database.cs```.
+
 ## CLI
 
 Refer to the CLI project which provide a binary that can be used to interact with an index for object storage, retrieval, removal, and statistics.  
@@ -40,6 +41,8 @@ Refer to the CLI project which provide a binary that can be used to interact wit
 ## Library Example
 
 The library requires that you implement three functions within your app for managing chunk data, specifically, writing, reading, and deleting.  This was done to provide you with flexibility on where you store chunk data and how you manage it.  
+
+The example below shows how to use WatsonDedupe with a managed internal Sqlite database.
  
 ```
 using System;
@@ -169,7 +172,44 @@ Recommended settings for most environments (min, max, shift, boundary):
 - For small file environments, use 1024, 8192, 64, and 2
 - For large file environments, use 32768, 262144, 512, and 2 
 
+## External Databases
+
+External databases can be used with WatsonDedupe if you implement the ```WatsonDedupe.Database.DbProvider``` class.  You are free to use whatever table and column names you wish, since your code will be responsible for issuing queries.  Tables must be created in advance as follows (Examples shown using MySQL syntax, limited constraints are shown):
+
+```
+CREATE SCHEMA `dedupe` ;
+
+CREATE TABLE `dedupe`.`dedupeconfig` (
+  `configkey` VARCHAR(128) NOT NULL,
+  `configval` VARCHAR(1024) NULL,
+  PRIMARY KEY (`configkey`),
+  UNIQUE INDEX `configkey_UNIQUE` (`configkey` ASC) VISIBLE);
+
+CREATE TABLE `dedupe`.`objectmap` (
+  `objectMapId` INT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(1024) NULL,
+  `contentLength` BIGINT(12) NULL,
+  `chunkKey` VARCHAR(128) NULL,
+  `chunkLength` INT NULL,
+  `chunkPosition` INT NULL,
+  `chunkAddress` BIGINT(12) NULL,
+  PRIMARY KEY (`objectMapId`));
+
+CREATE TABLE `dedupe`.`chunkrefcount` (
+  `chunkRefcountId` INT NOT NULL AUTO_INCREMENT,
+  `chunkKey` VARCHAR(128) NULL,
+  `chunkLength` INT NULL,
+  `refCount` INT NULL,
+  PRIMARY KEY (`chunkRefcountId`));
+```
+
 ## Version History
+
+v1.3.x
+
+- Better support for large files with APIs for streams
+- Moved internal chunking operations to use streams for both byte arrays and streams
+- Removed the XL projects
 
 v1.2.x
 

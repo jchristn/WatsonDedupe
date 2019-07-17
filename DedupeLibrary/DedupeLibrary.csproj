@@ -4,14 +4,14 @@
     <TargetFrameworks>netstandard2.0;net452</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>WatsonDedupe</PackageId>
-    <Version>1.3.0.1</Version>
+    <Version>1.4.0</Version>
     <Authors>Joel Christner</Authors>
     <Product>WatsonDedupe</Product>
     <Description>Standalone C# library for deduplication of data using Sqlite.</Description>
     <PackageProjectUrl>https://github.com/jchristn/WatsonDedupe</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jchristn/WatsonDedupe</RepositoryUrl>
     <RepositoryType>Github</RepositoryType>
-    <PackageReleaseNotes>Stream support.</PackageReleaseNotes>
+    <PackageReleaseNotes>Added DbProvider class to allow a developer to use their own database instead of Sqlite.</PackageReleaseNotes>
     <PackageTags>dedupe deduplication compression compress</PackageTags>
     <PackageLicenseUrl>https://raw.githubusercontent.com/jchristn/WatsonDedupe/master/LICENSE.txt</PackageLicenseUrl>
     <Copyright>(c)2019 Joel Christner</Copyright>

@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading.Tasks;
 using SlidingWindow;
 
+using WatsonDedupe.Database;
+
 namespace WatsonDedupe
 {
     /// <summary>
@@ -30,6 +32,17 @@ namespace WatsonDedupe
         /// </summary>
         public CallbackMethods Callbacks = new CallbackMethods();
 
+        /// <summary>
+        /// Specify the database provider.  If null, a local Sqlite database will be used.
+        /// </summary>
+        public DbProvider Database
+        {
+            get
+            {
+                return _Database;
+            } 
+        }
+
         #endregion
 
         #region Private-Members
@@ -40,15 +53,15 @@ namespace WatsonDedupe
         private int _ShiftCount;
         private int _BoundaryCheckBytes;
         private readonly object _ChunkLock;
-
-        private SqliteWrapper _Sqlite;
          
+        private DbProvider _Database = null;
+
         #endregion
 
-        #region Constructor
+        #region Constructors-and-Factories
 
         /// <summary>
-        /// Initialize an existing index.
+        /// Initialize an existing index using an internal Sqlite database.
         /// </summary>
         /// <param name="indexFile">Path and filename.</param>
         /// <param name="writeChunkMethod">Method to call to write a chunk to storage.</param>
@@ -75,13 +88,43 @@ namespace WatsonDedupe
             DebugSql = debugSql;
             _ChunkLock = new object();
 
-            _Sqlite = new SqliteWrapper(_IndexFile, DebugSql);
+            _Database = new SqliteProvider(_IndexFile, DebugSql);
 
             InitFromExistingIndex();
         }
 
         /// <summary>
-        /// Create a new index.
+        /// Initialize an existing index using an external database.  Tables must be created ahead of time.
+        /// </summary>
+        /// <param name="database">Database provider implemented using the Database.DbProvider class.</param>
+        /// <param name="writeChunkMethod">Method to call to write a chunk to storage.</param>
+        /// <param name="readChunkMethod">Method to call to read a chunk from storage.</param>
+        /// <param name="deleteChunkMethod">Method to call to delete a chunk from storage.</param>
+        /// <param name="debugDedupe">Enable console logging for deduplication operations.</param>
+        /// <param name="debugSql">Enable console logging for SQL operations.</param>
+        public DedupeLibrary(DbProvider database, Func<Chunk, bool> writeChunkMethod, Func<string, byte[]> readChunkMethod, Func<string, bool> deleteChunkMethod, bool debugDedupe, bool debugSql)
+        {
+            if (database == null) throw new ArgumentNullException(nameof(database));
+            if (writeChunkMethod == null) throw new ArgumentNullException(nameof(writeChunkMethod));
+            if (readChunkMethod == null) throw new ArgumentNullException(nameof(readChunkMethod));
+            if (deleteChunkMethod == null) throw new ArgumentNullException(nameof(deleteChunkMethod));
+             
+            _Database = database;
+
+            Callbacks = new CallbackMethods();
+            Callbacks.WriteChunk = writeChunkMethod;
+            Callbacks.ReadChunk = readChunkMethod;
+            Callbacks.DeleteChunk = deleteChunkMethod;
+
+            DebugDedupe = debugDedupe;
+            DebugSql = debugSql;
+            _ChunkLock = new object();
+             
+            InitFromExistingIndex();
+        }
+
+        /// <summary>
+        /// Create a new index using an internal Sqlite database.
         /// </summary>
         /// <param name="indexFile">Path and filename.</param>
         /// <param name="minChunkSize">Minimum chunk size, must be divisible by 8, divisible by 64, and 128 or greater.</param>
@@ -136,8 +179,65 @@ namespace WatsonDedupe
             DebugSql = debugSql;
             _ChunkLock = new object();
 
-            _Sqlite = new SqliteWrapper(_IndexFile, DebugSql);
+            _Database = new SqliteProvider(_IndexFile, DebugSql);
 
+            InitNewIndex();
+        }
+
+        /// <summary>
+        /// Create a new index using an external database.  Tables must be created ahead of time.
+        /// </summary>
+        /// <param name="database">Database provider implemented using the Database.DbProvider class.</param>
+        /// <param name="minChunkSize">Minimum chunk size, must be divisible by 8, divisible by 64, and 128 or greater.</param>
+        /// <param name="maxChunkSize">Maximum chunk size, must be divisible by 8, divisible by 64, and at least 8 times larger than minimum chunk size.</param>
+        /// <param name="shiftCount">Number of bytes to shift while identifying chunk boundaries, must be less than or equal to minimum chunk size.</param>
+        /// <param name="boundaryCheckBytes">Number of bytes to examine while checking for a chunk boundary, must be 8 or fewer.</param>
+        /// <param name="writeChunkMethod">Method to call to write a chunk to storage.</param>
+        /// <param name="readChunkMethod">Method to call to read a chunk from storage.</param>
+        /// <param name="deleteChunkMethod">Method to call to delete a chunk from storage.</param>
+        /// <param name="debugDedupe">Enable console logging for deduplication operations.</param>
+        /// <param name="debugSql">Enable console logging for SQL operations.</param>
+        public DedupeLibrary(
+            DbProvider database,
+            int minChunkSize,
+            int maxChunkSize,
+            int shiftCount,
+            int boundaryCheckBytes,
+            Func<Chunk, bool> writeChunkMethod,
+            Func<string, byte[]> readChunkMethod,
+            Func<string, bool> deleteChunkMethod,
+            bool debugDedupe,
+            bool debugSql)
+        {
+            if (database == null) throw new ArgumentNullException(nameof(database));
+            if (minChunkSize % 8 != 0) throw new ArgumentException("Value for minChunkSize must be evenly divisible by 8.");
+            if (maxChunkSize % 8 != 0) throw new ArgumentException("Value for maxChunkSize must be evenly divisible by 8.");
+            if (minChunkSize % 64 != 0) throw new ArgumentException("Value for minChunkSize must be evenly divisible by 64.");
+            if (maxChunkSize % 64 != 0) throw new ArgumentException("Value for maxChunkSize must be evenly divisible by 64.");
+            if (minChunkSize < 1024) throw new ArgumentOutOfRangeException("Value for minChunkSize must be 256 or greater.");
+            if (maxChunkSize <= minChunkSize) throw new ArgumentOutOfRangeException("Value for maxChunkSize must be greater than minChunkSize and " + (8 * minChunkSize) + " or less.");
+            if (maxChunkSize < (8 * minChunkSize)) throw new ArgumentOutOfRangeException("Value for maxChunkSize must be " + (8 * minChunkSize) + " or greater.");
+            if (shiftCount > minChunkSize) throw new ArgumentOutOfRangeException("Value for shiftCount must be less than or equal to minChunkSize.");
+            if (writeChunkMethod == null) throw new ArgumentNullException(nameof(writeChunkMethod));
+            if (readChunkMethod == null) throw new ArgumentNullException(nameof(readChunkMethod));
+            if (deleteChunkMethod == null) throw new ArgumentNullException(nameof(deleteChunkMethod));
+            if (boundaryCheckBytes < 1 || boundaryCheckBytes > 8) throw new ArgumentNullException(nameof(boundaryCheckBytes));
+             
+            _Database = database;
+            _MinChunkSize = minChunkSize;
+            _MaxChunkSize = maxChunkSize;
+            _ShiftCount = shiftCount;
+            _BoundaryCheckBytes = boundaryCheckBytes;
+
+            Callbacks = new CallbackMethods();
+            Callbacks.WriteChunk = writeChunkMethod;
+            Callbacks.ReadChunk = readChunkMethod;
+            Callbacks.DeleteChunk = deleteChunkMethod;
+
+            DebugDedupe = debugDedupe;
+            DebugSql = debugSql;
+            _ChunkLock = new object();
+             
             InitNewIndex();
         }
 
@@ -210,7 +310,7 @@ namespace WatsonDedupe
             if (!stream.CanRead) throw new ArgumentException("Cannot read from supplied stream.");
             objectName = DedupeCommon.SanitizeString(objectName);
 
-            if (_Sqlite.ObjectExists(objectName))
+            if (_Database.ObjectExists(objectName))
             {
                 Log("Object " + objectName + " already exists");
                 return false;
@@ -230,7 +330,7 @@ namespace WatsonDedupe
 
                     lock (_ChunkLock)
                     {
-                        if (!_Sqlite.AddObjectChunk(objectName, contentLength, chunk))
+                        if (!_Database.AddObjectChunk(objectName, contentLength, chunk))
                         {
                             Log("Unable to add chunk key " + chunk.Key);
                             garbageCollectionRequired = true;
@@ -260,7 +360,7 @@ namespace WatsonDedupe
                 if (garbageCollectionRequired)
                 {
                     List<string> garbageCollectKeys = new List<string>();
-                    _Sqlite.DeleteObjectChunks(objectName, out garbageCollectKeys);
+                    _Database.DeleteObjectChunks(objectName, out garbageCollectKeys);
 
                     if (garbageCollectKeys != null && garbageCollectKeys.Count > 0)
                     {
@@ -348,7 +448,7 @@ namespace WatsonDedupe
 
             #region Delete-if-Exists
 
-            if (_Sqlite.ObjectExists(objectName))
+            if (_Database.ObjectExists(objectName))
             {
                 Log("Object " + objectName + " already exists, deleting");
                 if (!DeleteObject(objectName))
@@ -381,7 +481,37 @@ namespace WatsonDedupe
 
             lock (_ChunkLock)
             {
-                return _Sqlite.GetObjectMetadata(objectName, out md);
+                return _Database.GetObjectMetadata(objectName, out md);
+            }
+        }
+
+        /// <summary>
+        /// Retrieve metadata about an object from the deduplication index.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="includeChunks">Set to true to include metadata about associated chunks.</param>
+        /// <param name="md">Object metadata.</param>
+        /// <returns>True if successful.</returns>
+        public bool RetrieveObjectMetadata(string objectName, bool includeChunks, out ObjectMetadata md)
+        {
+            md = null;
+            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            objectName = DedupeCommon.SanitizeString(objectName);
+            
+            lock (_ChunkLock)
+            {
+                if (!_Database.GetObjectMetadata(objectName, out md)) return false;
+
+                if (includeChunks)
+                {
+                    md.Chunks = new List<Chunk>();
+
+                    List<Chunk> chunks = new List<Chunk>();
+                    if (!_Database.GetObjectChunks(objectName, out chunks)) return false;
+                    md.Chunks = new List<Chunk>(chunks);
+                }
+
+                return true;
             }
         }
 
@@ -451,7 +581,7 @@ namespace WatsonDedupe
 
             lock (_ChunkLock)
             {
-                if (!_Sqlite.GetObjectMetadata(objectName, out md))
+                if (!_Database.GetObjectMetadata(objectName, out md))
                 {
                     Log("Unable to retrieve object metadata for object " + objectName);
                     return false;
@@ -512,7 +642,7 @@ namespace WatsonDedupe
 
             lock (_ChunkLock)
             {
-                _Sqlite.DeleteObjectChunks(objectName, out garbageCollectChunks);
+                _Database.DeleteObjectChunks(objectName, out garbageCollectChunks);
                 if (garbageCollectChunks != null && garbageCollectChunks.Count > 0)
                 {
                     foreach (string key in garbageCollectChunks)
@@ -534,7 +664,7 @@ namespace WatsonDedupe
         /// <param name="keys">List of object names.</param>
         public void ListObjects(out List<string> keys)
         {
-            _Sqlite.ListObjects(out keys);
+            _Database.ListObjects(out keys);
             return;
         }
 
@@ -545,7 +675,7 @@ namespace WatsonDedupe
         /// <returns>Boolean indicating if the object exists.</returns>
         public bool ObjectExists(string objectName)
         {
-            return _Sqlite.ObjectExists(objectName);
+            return _Database.ObjectExists(objectName);
         }
 
         /// <summary>
@@ -555,7 +685,7 @@ namespace WatsonDedupe
         /// <returns>Boolean indicating if the chunk exists.</returns>
         public bool ChunkExists(string chunkKey)
         {
-            return _Sqlite.ChunkExists(chunkKey);
+            return _Database.ChunkExists(chunkKey);
         }
 
         /// <summary>
@@ -570,7 +700,7 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool IndexStats(out int numObjects, out int numChunks, out long logicalBytes, out long physicalBytes, out decimal dedupeRatioX, out decimal dedupeRatioPercent)
         {
-            return _Sqlite.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent);
+            return _Database.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent);
         }
 
         /// <summary>
@@ -580,17 +710,32 @@ namespace WatsonDedupe
         /// <returns>True if successful.</returns>
         public bool BackupIndex(string destination)
         {
-            return _Sqlite.BackupIndex(destination);
+            return _Database.BackupDatabase(destination);
         }
 
+        /// <summary>
+        /// Import an object metadata record.  Do not use this API unless you are synchronizing metadata from another source for an object and chunks already stored.
+        /// </summary>
+        /// <param name="md">Object metadata.</param>
+        /// <returns>True if successful.</returns>
+        public bool ImportObjectMetadata(ObjectMetadata md)
+        {
+            if (md == null) throw new ArgumentNullException(nameof(md));
+            if (md.Chunks == null || md.Chunks.Count < 1) throw new ArgumentException("Object metadata contains no chunks.");
+
+            if (ObjectExists(md.Name)) return true;
+
+            return _Database.AddObjectChunks(md.Name, md.ContentLength, md.Chunks);
+        }
+          
         #endregion
 
         #region Private-Methods
-
+         
         private void InitFromExistingIndex()
         {
             string tempVal;
-            if (!_Sqlite.GetConfigData("min_chunk_size", out tempVal))
+            if (!_Database.GetConfigData("min_chunk_size", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'min_chunk_size'.");
             }
@@ -600,7 +745,7 @@ namespace WatsonDedupe
                 _MinChunkSize = Convert.ToInt32(tempVal);
             }
 
-            if (!_Sqlite.GetConfigData("max_chunk_size", out tempVal))
+            if (!_Database.GetConfigData("max_chunk_size", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'max_chunk_size'.");
             }
@@ -610,7 +755,7 @@ namespace WatsonDedupe
                 _MaxChunkSize = Convert.ToInt32(tempVal);
             }
 
-            if (!_Sqlite.GetConfigData("shift_count", out tempVal))
+            if (!_Database.GetConfigData("shift_count", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'shift_count'.");
             }
@@ -620,7 +765,7 @@ namespace WatsonDedupe
                 _ShiftCount = Convert.ToInt32(tempVal);
             }
 
-            if (!_Sqlite.GetConfigData("boundary_check_bytes", out tempVal))
+            if (!_Database.GetConfigData("boundary_check_bytes", out tempVal))
             {
                 throw new Exception("Configuration table has invalid value for 'boundary_check_bytes'.");
             }
@@ -633,11 +778,11 @@ namespace WatsonDedupe
 
         private void InitNewIndex()
         {
-            _Sqlite.AddConfigData("min_chunk_size", _MinChunkSize.ToString());
-            _Sqlite.AddConfigData("max_chunk_size", _MaxChunkSize.ToString());
-            _Sqlite.AddConfigData("shift_count", _ShiftCount.ToString());
-            _Sqlite.AddConfigData("boundary_check_bytes", _BoundaryCheckBytes.ToString());
-            _Sqlite.AddConfigData("index_per_object", "false");
+            _Database.AddConfigData("min_chunk_size", _MinChunkSize.ToString());
+            _Database.AddConfigData("max_chunk_size", _MaxChunkSize.ToString());
+            _Database.AddConfigData("shift_count", _ShiftCount.ToString());
+            _Database.AddConfigData("boundary_check_bytes", _BoundaryCheckBytes.ToString());
+            _Database.AddConfigData("index_per_object", "false");
         }
          
         private bool ChunkStream(long contentLength, Stream stream, Func<Chunk, bool> processChunk, out List<Chunk> chunks)
