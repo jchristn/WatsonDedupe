@@ -40,8 +40,8 @@ namespace Test.External
 
         public override void AddConfigData(string key, string val)
         {
-            key = DedupeCommon.SanitizeString(key);
-            val = DedupeCommon.SanitizeString(val);
+            key = SanitizeString(key);
+            val = SanitizeString(val);
 
             string keyCheckQuery = "SELECT * FROM DedupeConfig WHERE configkey = '" + key + "'";
             DataTable result;
@@ -65,7 +65,7 @@ namespace Test.External
         {
             val = null; 
 
-            key = DedupeCommon.SanitizeString(key);
+            key = SanitizeString(key);
 
             string keyQuery = "SELECT configval FROM DedupeConfig WHERE configkey = '" + key + "' LIMIT 1";
             DataTable result;
@@ -89,7 +89,7 @@ namespace Test.External
 
         public override bool ChunkExists(string key)
         { 
-            key = DedupeCommon.SanitizeString(key);
+            key = SanitizeString(key);
 
             string query = "SELECT * FROM ObjectMap WHERE ChunkKey = '" + key + "' LIMIT 1";
             DataTable result;
@@ -105,7 +105,7 @@ namespace Test.External
 
         public override bool ObjectExists(string name)
         { 
-            name = DedupeCommon.SanitizeString(name);
+            name = SanitizeString(name);
 
             string query = "SELECT * FROM ObjectMap WHERE Name = '" + name + "' LIMIT 1";
             DataTable result;
@@ -145,7 +145,7 @@ namespace Test.External
             if (totalLen < 1) throw new ArgumentException("Total length must be greater than zero.");
             if (chunk == null) throw new ArgumentNullException(nameof(chunk));
 
-            name = DedupeCommon.SanitizeString(name);
+            name = SanitizeString(name);
 
             DataTable result = null;
             string query = AddObjectChunkQuery(name, totalLen, chunk);
@@ -159,7 +159,7 @@ namespace Test.External
          
         public override bool AddObjectChunks(string name, long totalLen, List<Chunk> chunks)
         {
-            name = DedupeCommon.SanitizeString(name);
+            name = SanitizeString(name);
 
             if (ObjectExists(name)) return false;
 
@@ -184,7 +184,7 @@ namespace Test.External
 
         public override bool GetObjectMetadata(string name, out ObjectMetadata metadata)
         { 
-            name = DedupeCommon.SanitizeString(name);
+            name = SanitizeString(name);
             metadata = null;
 
             string query = "SELECT * FROM ObjectMap WHERE Name = '" + name + "'";
@@ -202,7 +202,7 @@ namespace Test.External
 
         public override bool GetObjectChunks(string name, out List<Chunk> chunks)
         { 
-            name = DedupeCommon.SanitizeString(name);
+            name = SanitizeString(name);
             chunks = new List<Chunk>();
 
             string query = "SELECT * FROM ObjectMap WHERE Name = '" + name + "'";
@@ -226,7 +226,7 @@ namespace Test.External
         {
             garbageCollectChunks = new List<string>(); 
 
-            name = DedupeCommon.SanitizeString(name);
+            name = SanitizeString(name);
 
             string selectQuery = "SELECT * FROM ObjectMap WHERE Name = '" + name + "'";
             string deleteObjectMapQuery = "DELETE FROM ObjectMap WHERE Name = '" + name + "'";
@@ -251,7 +251,7 @@ namespace Test.External
 
         public override bool IncrementChunkRefcount(string key, long len)
         { 
-            key = DedupeCommon.SanitizeString(key);
+            key = SanitizeString(key);
 
             string selectQuery = "";
             string updateQuery = "";
@@ -294,7 +294,7 @@ namespace Test.External
         {
             garbageCollect = false; 
 
-            key = DedupeCommon.SanitizeString(key);
+            key = SanitizeString(key);
 
             string selectQuery = "";
             string updateQuery = "";
@@ -402,9 +402,9 @@ namespace Test.External
                 "  ChunkAddress) " +
                 "VALUES " +
                 "(" +
-                "  '" + DedupeCommon.SanitizeString(objectName) + "', " +
+                "  '" + SanitizeString(objectName) + "', " +
                 "  '" + totalLen + "', " +
-                "  '" + DedupeCommon.SanitizeString(chunk.Key) + "', " +
+                "  '" + SanitizeString(chunk.Key) + "', " +
                 "  '" + chunk.Length + "', " +
                 "  '" + chunk.Position + "', " +
                 "  '" + chunk.Address + "'" +
@@ -441,7 +441,7 @@ namespace Test.External
                             "(" +
                             "'" + objectName + "', " +
                             "'" + totalLen + "', " +
-                            "'" + DedupeCommon.SanitizeString(chunks[i + currPosition].Key) + "', " +
+                            "'" + SanitizeString(chunks[i + currPosition].Key) + "', " +
                             "'" + chunks[i + currPosition].Length + "', " +
                             "'" + chunks[i + currPosition].Position + "', " +
                             "'" + chunks[i + currPosition].Address + "'" +
@@ -464,7 +464,7 @@ namespace Test.External
                             "(" +
                             "'" + objectName + "', " +
                             "'" + totalLen + "', " +
-                            "'" + DedupeCommon.SanitizeString(chunks[i + currPosition].Key) + "', " +
+                            "'" + SanitizeString(chunks[i + currPosition].Key) + "', " +
                             "'" + chunks[i + currPosition].Length + "', " +
                             "'" + chunks[i + currPosition].Position + "', " +
                             "'" + chunks[i + currPosition].Address + "'" +
@@ -483,6 +483,85 @@ namespace Test.External
             }
 
             return ret;
-        } 
+        }
+         
+        private static string SanitizeString(string s)
+        {
+            if (String.IsNullOrEmpty(s)) return String.Empty;
+
+            string ret = "";
+            int doubleDash = 0;
+            int openComment = 0;
+            int closeComment = 0;
+
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (((int)(s[i]) == 10) ||      // Preserve carriage return
+                    ((int)(s[i]) == 13))        // and line feed
+                {
+                    ret += s[i];
+                }
+                else if ((int)(s[i]) < 32)
+                {
+                    continue;
+                }
+                else
+                {
+                    ret += s[i];
+                }
+            }
+
+            //
+            // double dash
+            //
+            doubleDash = 0;
+            while (true)
+            {
+                doubleDash = ret.IndexOf("--");
+                if (doubleDash < 0)
+                {
+                    break;
+                }
+                else
+                {
+                    ret = ret.Remove(doubleDash, 2);
+                }
+            }
+
+            //
+            // open comment
+            // 
+            openComment = 0;
+            while (true)
+            {
+                openComment = ret.IndexOf("/*");
+                if (openComment < 0) break;
+                else
+                {
+                    ret = ret.Remove(openComment, 2);
+                }
+            }
+
+            //
+            // close comment
+            //
+            closeComment = 0;
+            while (true)
+            {
+                closeComment = ret.IndexOf("*/");
+                if (closeComment < 0) break;
+                else
+                {
+                    ret = ret.Remove(closeComment, 2);
+                }
+            }
+
+            //
+            // in-string replacement
+            //
+            ret = ret.Replace("'", "''");
+
+            return ret;
+        }
     }
 }

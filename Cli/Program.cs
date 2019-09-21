@@ -173,7 +173,7 @@ namespace Cli
                             Console.WriteLine("  Number of chunks  : " + NumChunks);
                             Console.WriteLine("  Logical bytes     : " + LogicalBytes + " bytes");
                             Console.WriteLine("  Physical bytes    : " + PhysicalBytes + " bytes");
-                            Console.WriteLine("  Dedupe ratio      : " + DedupeCommon.DecimalToString(DedupeRatioX) + "X, " + DedupeCommon.DecimalToString(DedupeRatioPercent) + "%");
+                            Console.WriteLine("  Dedupe ratio      : " + DecimalToString(DedupeRatioX) + "X, " + DecimalToString(DedupeRatioPercent) + "%");
                             return;
                         }
                         else
@@ -472,6 +472,14 @@ namespace Cli
             Assembly assembly = System.Reflection.Assembly.GetExecutingAssembly();
             FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
             return fvi.FileVersion;
+        }
+
+        static string DecimalToString(object obj)
+        {
+            if (obj == null) return null;
+            string ret = string.Format("{0:N2}", obj);
+            ret = ret.Replace(",", "");
+            return ret;
         }
     }
 }

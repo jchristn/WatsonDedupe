@@ -67,8 +67,8 @@ namespace Test
                         break;
 
                     case "store":
-                        filename = DedupeCommon.InputString("Input filename:", null, false);
-                        key = DedupeCommon.InputString("Object key:", null, false);
+                        filename = InputString("Input filename:", null, false);
+                        key = InputString("Object key:", null, false);
                         contentLength = GetContentLength(filename);
                         using (FileStream fs = new FileStream(filename, FileMode.Open))
                         {
@@ -91,8 +91,8 @@ namespace Test
                         break;
 
                     case "retrieve":
-                        key = DedupeCommon.InputString("Object key:", null, false);
-                        filename = DedupeCommon.InputString("Output filename:", null, false);
+                        key = InputString("Object key:", null, false);
+                        filename = InputString("Output filename:", null, false);
                         if (_Dedupe.RetrieveObject(key, out contentLength, out stream))
                         {
                             if (contentLength > 0)
@@ -128,7 +128,7 @@ namespace Test
                         break;
 
                     case "delete":
-                        key = DedupeCommon.InputString("Object key:", null, false);
+                        key = InputString("Object key:", null, false);
                         if (_Dedupe.DeleteObject(key))
                         {
                             Console.WriteLine("Success");
@@ -140,7 +140,7 @@ namespace Test
                         break;
 
                     case "metadata":
-                        key = DedupeCommon.InputString("Object key:", null, false);
+                        key = InputString("Object key:", null, false);
                         if (_Dedupe.RetrieveObjectMetadata(key, true, out md))
                         {
                             Console.WriteLine("Success");
@@ -163,7 +163,7 @@ namespace Test
                         break;
 
                     case "exists":
-                        key = DedupeCommon.InputString("Object name:", null, false);
+                        key = InputString("Object name:", null, false);
                         if (_Dedupe.ObjectExists(key))
                         {
                             Console.WriteLine("Object exists");
@@ -182,7 +182,7 @@ namespace Test
                             Console.WriteLine("  Number of chunks  : " + numChunks);
                             Console.WriteLine("  Logical bytes     : " + logicalBytes + " bytes");
                             Console.WriteLine("  Physical bytes    : " + physicalBytes + " bytes");
-                            Console.WriteLine("  Dedupe ratio      : " + DedupeCommon.DecimalToString(dedupeRatioX) + "X, " + DedupeCommon.DecimalToString(dedupeRatioPercent) + "%");
+                            Console.WriteLine("  Dedupe ratio      : " + DecimalToString(dedupeRatioX) + "X, " + DecimalToString(dedupeRatioPercent) + "%");
                             Console.WriteLine("");
                         }
                         else
@@ -249,6 +249,40 @@ namespace Test
         {
             FileInfo fi = new FileInfo(filename);
             return fi.Length;
+        }
+         
+        static string InputString(string question, string defaultAnswer, bool allowNull)
+        {
+            while (true)
+            {
+                Console.Write(question);
+
+                if (!String.IsNullOrEmpty(defaultAnswer))
+                {
+                    Console.Write(" [" + defaultAnswer + "]");
+                }
+
+                Console.Write(" ");
+
+                string userInput = Console.ReadLine();
+
+                if (String.IsNullOrEmpty(userInput))
+                {
+                    if (!String.IsNullOrEmpty(defaultAnswer)) return defaultAnswer;
+                    if (allowNull) return null;
+                    else continue;
+                }
+
+                return userInput;
+            }
+        }
+
+        static string DecimalToString(object obj)
+        {
+            if (obj == null) return null;
+            string ret = string.Format("{0:N2}", obj);
+            ret = ret.Replace(",", "");
+            return ret;
         }
     }
 }

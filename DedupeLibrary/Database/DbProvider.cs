@@ -4,6 +4,9 @@ using System.Text;
 
 namespace WatsonDedupe.Database
 {
+    /// <summary>
+    /// External database provider.
+    /// </summary>
     public abstract class DbProvider
     {
         /// <summary>

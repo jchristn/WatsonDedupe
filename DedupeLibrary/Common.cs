@@ -7,13 +7,10 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace WatsonDedupe
-{
-    /// <summary>
-    /// Commonly-used static methods.
-    /// </summary>
-    public static class DedupeCommon
+{ 
+    internal static class DedupeCommon
     {
-        public static string SanitizeString(string s)
+        internal static string SanitizeString(string s)
         {
             if (String.IsNullOrEmpty(s)) return String.Empty;
 
@@ -92,25 +89,25 @@ namespace WatsonDedupe
             return ret;
         }
 
-        public static byte[] Sha1(byte[] data)
+        internal static byte[] Sha1(byte[] data)
         {
             SHA1Managed s = new SHA1Managed();
             return s.ComputeHash(data);
         }
 
-        public static byte[] Sha256(byte[] data)
+        internal static byte[] Sha256(byte[] data)
         {
             SHA256Managed s = new SHA256Managed();
             return s.ComputeHash(data);
         }
 
-        public static byte[] Md5(byte[] data)
+        internal static byte[] Md5(byte[] data)
         {
             MD5 m = MD5.Create();
             return m.ComputeHash(data);
         }
         
-        public static byte[] Base64ToBytes(string data)
+        internal static byte[] Base64ToBytes(string data)
         {
             if (String.IsNullOrEmpty(data)) return null;
             data = data.Replace("_", "/").Replace("-", "+");
@@ -123,14 +120,14 @@ namespace WatsonDedupe
             return Convert.FromBase64String(data);
         }
 
-        public static string Base64ToString(string data)
+        internal static string Base64ToString(string data)
         {
             if (String.IsNullOrEmpty(data)) return null;
             byte[] bytes = System.Convert.FromBase64String(data);
             return System.Text.UTF8Encoding.UTF8.GetString(bytes);
         }
 
-        public static string BytesToBase64(byte[] data)
+        internal static string BytesToBase64(byte[] data)
         {
             if (data == null) return null;
             if (data.Length < 1) return null;
@@ -139,7 +136,7 @@ namespace WatsonDedupe
             return temp;
         }
 
-        public static bool IsZeroBytes(byte[] data, int numBytes)
+        internal static bool IsZeroBytes(byte[] data, int numBytes)
         {
             if (data == null || data.Length < 1) return true;
             byte[] testData = new byte[numBytes];
@@ -164,7 +161,7 @@ namespace WatsonDedupe
             return true;
         }
 
-        public static MemoryStream BytesToStream(byte[] data)
+        internal static MemoryStream BytesToStream(byte[] data)
         {
             if (data == null || data.Length < 1) throw new ArgumentNullException(nameof(data));
             MemoryStream ret = new MemoryStream();
@@ -173,7 +170,7 @@ namespace WatsonDedupe
             return ret;
         }
 
-        public static byte[] AppendBytes(byte[] head, byte[] tail)
+        internal static byte[] AppendBytes(byte[] head, byte[] tail)
         {
             byte[] arrayCombined = new byte[head.Length + tail.Length];
             Array.Copy(head, 0, arrayCombined, 0, head.Length);
@@ -181,7 +178,7 @@ namespace WatsonDedupe
             return arrayCombined;
         }
 
-        public static byte[] StreamToBytes(Stream input)
+        internal static byte[] StreamToBytes(Stream input)
         {
             if (input == null) throw new ArgumentNullException(nameof(input));
             if (!input.CanRead) throw new InvalidOperationException("Input stream is not readable");
@@ -200,7 +197,7 @@ namespace WatsonDedupe
             }
         }
 
-        public static byte[] ReadBytesFromStream(Stream stream, long count, out long bytesRead)
+        internal static byte[] ReadBytesFromStream(Stream stream, long count, out long bytesRead)
         {
             bytesRead = 0;
             byte[] data = new byte[count];
@@ -220,7 +217,7 @@ namespace WatsonDedupe
             return data;
         }
 
-        public static void ClearCurrentLine()
+        internal static void ClearCurrentLine()
         {
             int currLineCursor = Console.CursorTop;
             Console.SetCursorPosition(0, Console.CursorTop);
@@ -228,7 +225,7 @@ namespace WatsonDedupe
             Console.SetCursorPosition(0, currLineCursor);
         }
 
-        public static byte[] ShiftLeft(byte[] data, int shiftCount, byte fill)
+        internal static byte[] ShiftLeft(byte[] data, int shiftCount, byte fill)
         {
             if (data == null || data.Length < 1) return null;
             byte[] ret = InitBytes(data.Length, fill);
@@ -238,7 +235,7 @@ namespace WatsonDedupe
             return ret;
         }
 
-        public static byte[] ShiftRight(byte[] data, int shiftCount, byte fill)
+        internal static byte[] ShiftRight(byte[] data, int shiftCount, byte fill)
         {
             if (data == null || data.Length < 1) return null;
             byte[] ret = InitBytes(data.Length, fill);
@@ -248,7 +245,7 @@ namespace WatsonDedupe
             return ret;
         }
 
-        public static byte[] InitBytes(long count, byte val)
+        internal static byte[] InitBytes(long count, byte val)
         {
             byte[] ret = new byte[count];
             for (long i = 0; i < ret.Length; i++)
@@ -258,7 +255,7 @@ namespace WatsonDedupe
             return ret;
         }
         
-        public static bool InputBoolean(string question, bool yesDefault)
+        internal static bool InputBoolean(string question, bool yesDefault)
         {
             Console.Write(question);
 
@@ -301,7 +298,7 @@ namespace WatsonDedupe
             }
         }
 
-        public static List<string> InputStringList(string question)
+        internal static List<string> InputStringList(string question)
         {
             Console.WriteLine("Press ENTER with no data to end");
             List<string> ret = new List<string>();
@@ -316,7 +313,7 @@ namespace WatsonDedupe
             return ret;
         }
 
-        public static string InputString(string question, string defaultAnswer, bool allowNull)
+        internal static string InputString(string question, string defaultAnswer, bool allowNull)
         {
             while (true)
             {
@@ -342,7 +339,7 @@ namespace WatsonDedupe
             }
         }
 
-        public static int InputInteger(string question, int defaultAnswer, bool positiveOnly, bool allowZero)
+        internal static int InputInteger(string question, int defaultAnswer, bool positiveOnly, bool allowZero)
         {
             while (true)
             {
@@ -384,7 +381,7 @@ namespace WatsonDedupe
             }
         }
 
-        public static decimal InputDecimal(string question, decimal defaultAnswer, bool positiveOnly, bool allowZero)
+        internal static decimal InputDecimal(string question, decimal defaultAnswer, bool positiveOnly, bool allowZero)
         {
             while (true)
             {
@@ -426,7 +423,7 @@ namespace WatsonDedupe
             }
         }
 
-        public static string DecimalToString(object obj)
+        internal static string DecimalToString(object obj)
         {
             if (obj == null) return null;
             string ret = string.Format("{0:N2}", obj);
