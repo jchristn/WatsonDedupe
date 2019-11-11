@@ -222,6 +222,68 @@ namespace Test.External
             return true;
         }
 
+        public override bool GetChunksForRange(string name, long start, long end, out List<Chunk> chunks)
+        {
+            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+            if (start < 0) throw new ArgumentOutOfRangeException("Start of range must be zero or greater.");
+            if (end < 0) throw new ArgumentOutOfRangeException("End of range must be zero or greater.");
+            if (end < start) throw new ArgumentOutOfRangeException("End of range must be greater than or equal to start of range.");
+
+            name = SanitizeString(name);
+            chunks = new List<Chunk>();
+
+            string query =
+                "SELECT * FROM ObjectMap " +
+                "WHERE Name = '" + name + "' AND " +
+                "(" +
+                "     (chunkAddress <= " + start + " AND chunkAddress + chunkLength > " + start + ") " +
+                "  OR (chunkAddress <= " + end + " AND chunkAddress + chunkLength > " + end + ") " +
+                "  OR (chunkAddress >= " + start + " AND chunkAddress <= " + end + ") " +
+                ")";
+
+            DataTable result; 
+            lock (_ObjectLock)
+            {
+                result = _Database.Query(query);
+            }
+
+            if (result == null || result.Rows.Count < 1) return false; 
+
+            foreach (DataRow row in result.Rows)
+            {
+                chunks.Add(Chunk.FromDataRow(row));
+            }
+
+            chunks = chunks.OrderBy(c => c.Address).ToList();
+            return true;
+        }
+
+        public override bool GetChunkForPosition(string name, long start, out Chunk chunk)
+        {
+            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+            if (start < 0) throw new ArgumentOutOfRangeException("Start of range must be zero or greater.");
+
+            chunk = null;
+            name = SanitizeString(name);
+
+            string query =
+                "SELECT * FROM ObjectMap " +
+                "WHERE " +
+                "  Name = '" + name + "' " +
+                "  AND chunkAddress <= " + start + " AND chunkAddress + chunkLength > " + start + " ";
+
+            DataTable result; 
+            lock (_ObjectLock)
+            {
+                result = _Database.Query(query);
+            }
+
+            if (result == null || result.Rows.Count < 1) return false;  
+
+            chunk = Chunk.FromDataRow(result.Rows[0]);
+            return true;
+        }
+
         public override void DeleteObjectChunks(string name, out List<string> garbageCollectChunks)
         {
             garbageCollectChunks = new List<string>(); 

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.168
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29411.108
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DedupeLibrary", "DedupeLibrary\DedupeLibrary.csproj", "{D3FB5B53-C501-4D34-81D3-D2E417252797}"
 EndProject
@@ -9,7 +9,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Cli", "Cli\Cli.csproj", "{F
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test", "Test\Test.csproj", "{D42E3BCE-DEF7-429B-BF82-9A0EF78FC7A6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.External", "Test.External\Test.External.csproj", "{CCC55F2C-9526-4726-9768-732654E855A1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test.External", "Test.External\Test.External.csproj", "{CCC55F2C-9526-4726-9768-732654E855A1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test.ReadStream", "Test.ReadStream\Test.ReadStream.csproj", "{963EB96B-0567-457F-A67F-95169558295F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +35,10 @@ Global
 		{CCC55F2C-9526-4726-9768-732654E855A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CCC55F2C-9526-4726-9768-732654E855A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CCC55F2C-9526-4726-9768-732654E855A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{963EB96B-0567-457F-A67F-95169558295F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{963EB96B-0567-457F-A67F-95169558295F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{963EB96B-0567-457F-A67F-95169558295F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{963EB96B-0567-457F-A67F-95169558295F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

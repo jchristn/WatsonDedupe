@@ -2,11 +2,15 @@
 
 ## Current Version
 
+v1.5.0
+
+- DedupeStream class to read large, deduplicated objects using a stream
+
+## Previous Versions
+
 v1.4.1
 
 - XML documentation
-
-## Previous Versions
 
 v1.4.0
 

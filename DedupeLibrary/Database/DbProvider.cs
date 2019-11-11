@@ -85,6 +85,25 @@ namespace WatsonDedupe.Database
         public abstract bool GetObjectChunks(string name, out List<Chunk> chunks);
 
         /// <summary>
+        /// Retrieve chunks containing data within a range of bytes from the original object.
+        /// </summary>
+        /// <param name="name">Object name.</param>
+        /// <param name="start">Starting range.</param>
+        /// <param name="end">Ending range.</param>
+        /// <param name="chunks">Chunks.</param>
+        /// <returns>True if successful.</returns>
+        public abstract bool GetChunksForRange(string name, long start, long end, out List<Chunk> chunks);
+
+        /// <summary>
+        /// Retrieve the chunk containing data for a given address within the original object.
+        /// </summary>
+        /// <param name="name">Object name.</param>
+        /// <param name="start">Starting range.</param>
+        /// <param name="chunk">Chunk.</param>
+        /// <returns>True if successful.</returns>
+        public abstract bool GetChunkForPosition(string name, long start, out Chunk chunk);
+
+        /// <summary>
         /// Delete an object and dereference the associated chunks.
         /// </summary>
         /// <param name="name">The name of the object.</param>

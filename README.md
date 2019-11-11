@@ -11,9 +11,9 @@ Self-contained C# library for data deduplication using System.Data.Sqlite and ta
 
 ![alt tag](https://github.com/jchristn/WatsonDedupe/blob/master/assets/diagram_half.png)
 
-## New in v1.4.1
+## New in v1.5.0
 
-- XML documentation
+- DedupeStream class to read large, deduplicated objects using a stream
 
 ## Help and Support
 

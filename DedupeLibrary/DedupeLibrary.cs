@@ -615,6 +615,39 @@ namespace WatsonDedupe
         }
 
         /// <summary>
+        /// Retrieve a read-only stream over an object that has been stored.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="stream">Read-only stream.</param>
+        /// <returns>True if successful.</returns>
+        public bool RetrieveObjectStream(string objectName, out DedupeStream stream)
+        {
+            return RetrieveObjectStream(objectName, Callbacks, out stream);
+        }
+
+        /// <summary>
+        /// Retrieve a read-only stream over an object that has been stored.
+        /// </summary>
+        /// <param name="objectName">The name of the object.</param>
+        /// <param name="callbacks">CallbackMethods object containing callback methods.</param>
+        /// <param name="stream">Read-only stream.</param>
+        /// <returns>True if successful.</returns>
+        public bool RetrieveObjectStream(string objectName, CallbackMethods callbacks, out DedupeStream stream)
+        {
+            stream = null; 
+            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
+            if (callbacks == null) throw new ArgumentNullException(nameof(callbacks));
+            if (callbacks.ReadChunk == null) throw new ArgumentException("ReadChunk callback must be specified.");
+            objectName = DedupeCommon.SanitizeString(objectName);
+
+            ObjectMetadata md = null;
+            if (!RetrieveObjectMetadata(objectName, out md)) return false;
+
+            stream = new DedupeStream(md, _Database, callbacks);
+            return true;
+        }
+
+        /// <summary>
         /// Delete an object stored in the deduplication index.
         /// </summary>
         /// <param name="objectName">The name of the object.</param>

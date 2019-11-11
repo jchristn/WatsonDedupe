@@ -351,6 +351,87 @@ namespace WatsonDedupe.Database
         }
 
         /// <summary>
+        /// Retrieve chunks containing data within a range of bytes from the original object.
+        /// </summary>
+        /// <param name="name">Object name.</param>
+        /// <param name="start">Starting range.</param>
+        /// <param name="end">Ending range.</param>
+        /// <param name="chunks">Chunks.</param>
+        /// <returns>True if successful.</returns>
+        public override bool GetChunksForRange(string name, long start, long end, out List<Chunk> chunks)
+        {
+            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+            if (start < 0) throw new ArgumentOutOfRangeException("Start of range must be zero or greater.");
+            if (end < 0) throw new ArgumentOutOfRangeException("End of range must be zero or greater.");
+            if (end < start) throw new ArgumentOutOfRangeException("End of range must be greater than or equal to start of range.");
+
+            name = DedupeCommon.SanitizeString(name);
+            chunks = new List<Chunk>();
+
+            string query =
+                "SELECT * FROM ObjectMap " +
+                "WHERE Name = '" + name + "' AND " +
+                "(" +
+                "     (chunkAddress <= " + start + " AND chunkAddress + chunkLength > " + start + ") " +
+                "  OR (chunkAddress <= " + end + " AND chunkAddress + chunkLength > " + end + ") " +
+                "  OR (chunkAddress >= " + start + " AND chunkAddress <= " + end + ") " +
+                ")";
+
+            DataTable result;
+            bool success = false;
+            lock (_ObjectLock)
+            {
+                success = Query(query, out result);
+            }
+
+            if (result == null || result.Rows.Count < 1) return false;
+            if (!success) return false;
+
+            foreach (DataRow row in result.Rows)
+            {
+                chunks.Add(Chunk.FromDataRow(row));
+            }
+
+            chunks = chunks.OrderBy(c => c.Address).ToList();
+            return true;
+        }
+
+        /// <summary>
+        /// Retrieve the chunk containing data for a given address within the original object.
+        /// </summary>
+        /// <param name="name">Object name.</param>
+        /// <param name="start">Starting range.</param>
+        /// <param name="chunk">Chunk.</param>
+        /// <returns>True if successful.</returns>
+        public override bool GetChunkForPosition(string name, long start, out Chunk chunk)
+        {
+            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
+            if (start < 0) throw new ArgumentOutOfRangeException("Start of range must be zero or greater.");
+
+            chunk = null;
+            name = DedupeCommon.SanitizeString(name);
+
+            string query =
+                "SELECT * FROM ObjectMap " +
+                "WHERE " +
+                "  Name = '" + name + "' " +
+                "  AND chunkAddress <= " + start + " AND chunkAddress + chunkLength > " + start + " ";
+
+            DataTable result;
+            bool success = false;
+            lock (_ObjectLock)
+            {
+                success = Query(query, out result);
+            }
+
+            if (result == null || result.Rows.Count < 1) return false;
+            if (!success) return false;
+
+            chunk = Chunk.FromDataRow(result.Rows[0]);
+            return true;
+        }
+
+        /// <summary>
         /// Delete an object and dereference the associated chunks.
         /// </summary>
         /// <param name="name">The name of the object.</param>
@@ -805,6 +886,6 @@ namespace WatsonDedupe.Database
             return ret;
         }
 
-        #endregion 
+        #endregion
     }
 }
