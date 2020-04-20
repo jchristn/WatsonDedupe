@@ -2,10 +2,7 @@
 
 # Watson Deduplication Library
 
-[![][nuget-img]][nuget]
-
-[nuget]:     https://www.nuget.org/packages/WatsonDedupe/
-[nuget-img]: https://badge.fury.io/nu/Object.svg
+[![NuGet Version](https://img.shields.io/nuget/v/WatsonDedupe.svg?style=flat)](https://www.nuget.org/packages/WatsonDedupe/) [![NuGet](https://img.shields.io/nuget/dt/WatsonDedupe.svg)](https://www.nuget.org/packages/WatsonDedupe) 
 
 Self-contained C# library for data deduplication using System.Data.Sqlite and targeted to .NET Core 2.0 and .NET Framework 4.5.2.
 
