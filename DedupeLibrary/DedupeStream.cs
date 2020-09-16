@@ -10,14 +10,14 @@ namespace WatsonDedupe
     /// <summary>
     /// A read-only stream over a deduplicated object.
     /// </summary>
-    public class DedupeStream : Stream, IDisposable
+    public class DedupeStream : Stream
     {
-        private ObjectMetadata _Metadata = null;
+        private DedupeObject _Metadata = null;
         private DbProvider _Database = null;
-        private CallbackMethods _Callbacks = null;
+        private DedupeCallbacks _Callbacks = null;
         private long _Position = 0;
 
-        internal DedupeStream(ObjectMetadata md, DbProvider db, CallbackMethods callbacks)
+        internal DedupeStream(DedupeObject md, DbProvider db, DedupeCallbacks callbacks)
         {
             if (md == null) throw new ArgumentNullException(nameof(md));
             if (db == null) throw new ArgumentNullException(nameof(db));
@@ -46,7 +46,7 @@ namespace WatsonDedupe
         /// <summary>
         /// Indicates the length of the content contained within the stream.
         /// </summary>
-        public override long Length => _Metadata.ContentLength;
+        public override long Length => _Metadata.Length;
 
         /// <summary>
         /// Indicates the current position within the stream.
@@ -60,7 +60,7 @@ namespace WatsonDedupe
             set
             {
                 if (value < 0) throw new ArgumentOutOfRangeException("Position must be zero or greater.");
-                if (value > _Metadata.ContentLength) throw new ArgumentOutOfRangeException("Position must be less than or equal to the content length.");
+                if (value > _Metadata.Length) throw new ArgumentOutOfRangeException("Position must be less than or equal to the content length.");
                 _Position = value;
             }
         }
@@ -88,18 +88,17 @@ namespace WatsonDedupe
             if ((offset + count) > buffer.Length) throw new ArgumentOutOfRangeException("Offset and count combined must not exceed buffer length.");
             if (offset >= Length) return 0;
 
-            
-            Chunk chunk = null;
-            if (!_Database.GetChunkForPosition(_Metadata.Name, _Position, out chunk)) return 0;
-            if (chunk == null) return 0;
-            if (chunk.Address > Position) throw new IOException("Data error while reading chunks from object.");
+            DedupeObjectMap map = _Database.GetObjectMapForPosition(_Metadata.Key, _Position);
+            if (map == null) return 0;
 
-            byte[] chunkData = _Callbacks.ReadChunk(chunk.Key); 
+            if (map.ChunkAddress > Position) throw new IOException("Data error while reading chunks from object.");
+
+            byte[] chunkData = _Callbacks.ReadChunk(map.ChunkKey); 
             
             int chunkDataReadStart = 0;            
-            if (chunk.Address < Position) chunkDataReadStart += (int)(Position - chunk.Address);
+            if (map.ChunkAddress < Position) chunkDataReadStart += (int)(Position - map.ChunkAddress);
 
-            int bytesAvailInChunk = (int)(chunk.Length - chunkDataReadStart);
+            int bytesAvailInChunk = (int)(map.ChunkLength - chunkDataReadStart);
 
             if (count >= bytesAvailInChunk)
             {

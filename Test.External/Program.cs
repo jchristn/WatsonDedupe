@@ -4,9 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
-using DatabaseWrapper;
-
+using Watson.ORM.Core;
+using Watson.ORM.Sqlite; 
 using WatsonDedupe;
 using WatsonDedupe.Database;
 
@@ -15,36 +14,28 @@ namespace Test.External
     class Program
     {
         static DbProvider _DbProvider;
-        static DatabaseClient _Database;
+        static DatabaseSettings _DbSettings;
+        static WatsonORM _ORM;
+        static DedupeSettings _Settings;
+        static DedupeCallbacks _Callbacks;
         static DedupeLibrary _Dedupe;
-        static bool _DebugDedupe = true;
-        static bool _DebugSql = true;
-
+        static IndexStatistics _Stats;
+        static EnumerationResult _EnumResult;
+         
         static void Main(string[] args)
         {
             bool runForever = true;
-            string userInput = "";
             string filename = "";
             string key = "";
-            long contentLength = 0;
-            Stream stream = null;
-            List<Chunk> chunks;
-            List<string> keys;
-            ObjectMetadata md;
-
-            int numObjects;
-            int numChunks;
-            long logicalBytes;
-            long physicalBytes;
-            decimal dedupeRatioX;
-            decimal dedupeRatioPercent;
-
+            long contentLength = 0; 
+            DedupeObject obj = null; 
+             
             Initialize();
 
             while (runForever)
             {
                 Console.Write("Command [? for help] > ");
-                userInput = Console.ReadLine();
+                string userInput = Console.ReadLine();
                 if (String.IsNullOrEmpty(userInput)) continue;
 
                 switch (userInput)
@@ -53,11 +44,12 @@ namespace Test.External
                         Console.WriteLine("Available commands:");
                         Console.WriteLine("  q          quit");
                         Console.WriteLine("  cls        clear the screen");
-                        Console.WriteLine("  store      store an object");
-                        Console.WriteLine("  retrieve   retrieve an object");
-                        Console.WriteLine("  delete     delete an object");
-                        Console.WriteLine("  metadata   retrieve object metadata");
-                        Console.WriteLine("  list       list objects in the index");
+                        Console.WriteLine("  write      store an object");
+                        Console.WriteLine("  get        retrieve an object");
+                        Console.WriteLine("  del        delete an object");
+                        Console.WriteLine("  md         retrieve object metadata");
+                        Console.WriteLine("  list       list 100 objects in the index");
+                        Console.WriteLine("  listp      paginated list objects");
                         Console.WriteLine("  exists     check if object exists in the index");
                         Console.WriteLine("  stats      list index stats");
                         Console.WriteLine("");
@@ -72,46 +64,33 @@ namespace Test.External
                         Console.Clear();
                         break;
 
-                    case "store":
+                    case "write":
                         filename = InputString("Input filename:", null, false);
                         key = InputString("Object key:", null, false);
                         contentLength = GetContentLength(filename);
                         using (FileStream fs = new FileStream(filename, FileMode.Open))
                         {
-                            if (_Dedupe.StoreObject(key, contentLength, fs, out chunks))
-                            {
-                                if (chunks != null && chunks.Count > 0)
-                                {
-                                    Console.WriteLine("Success: " + chunks.Count + " chunks");
-                                }
-                                else
-                                {
-                                    Console.WriteLine("Success (no chunks)");
-                                }
-                            }
-                            else
-                            {
-                                Console.WriteLine("Failed");
-                            }
+                            _Dedupe.Write(key, contentLength, fs);
                         }
                         break;
 
-                    case "retrieve":
+                    case "get":
                         key = InputString("Object key:", null, false);
                         filename = InputString("Output filename:", null, false);
-                        if (_Dedupe.RetrieveObject(key, out contentLength, out stream))
+                        obj = _Dedupe.Get(key);
+                        if (obj != null)
                         {
-                            if (contentLength > 0)
+                            if (obj.Length > 0)
                             {
                                 using (FileStream fs = new FileStream(filename, FileMode.OpenOrCreate))
                                 {
                                     int bytesRead = 0;
-                                    long bytesRemaining = contentLength;
+                                    long bytesRemaining = obj.Length;
                                     byte[] readBuffer = new byte[65536];
 
                                     while (bytesRemaining > 0)
                                     {
-                                        bytesRead = stream.Read(readBuffer, 0, readBuffer.Length);
+                                        bytesRead = obj.DataStream.Read(readBuffer, 0, readBuffer.Length);
                                         if (bytesRead > 0)
                                         {
                                             fs.Write(readBuffer, 0, bytesRead);
@@ -133,24 +112,18 @@ namespace Test.External
                         }
                         break;
 
-                    case "delete":
+                    case "del":
                         key = InputString("Object key:", null, false);
-                        if (_Dedupe.DeleteObject(key))
-                        {
-                            Console.WriteLine("Success");
-                        }
-                        else
-                        {
-                            Console.WriteLine("Failed");
-                        }
+                        _Dedupe.Delete(key);
                         break;
 
-                    case "metadata":
+                    case "md":
                         key = InputString("Object key:", null, false);
-                        if (_Dedupe.RetrieveObjectMetadata(key, true, out md))
+                        obj = _Dedupe.GetMetadata(key);
+                        if (obj != null)
                         {
                             Console.WriteLine("Success");
-                            Console.WriteLine(md.ToString());
+                            Console.WriteLine(obj.ToString());
                         }
                         else
                         {
@@ -159,18 +132,20 @@ namespace Test.External
                         break;
 
                     case "list":
-                        _Dedupe.ListObjects(out keys);
-                        if (keys != null && keys.Count > 0)
+                        _EnumResult = _Dedupe.ListObjects();
+                        if (_EnumResult == null)
                         {
-                            Console.WriteLine("Objects: ");
-                            foreach (string curr in keys) Console.WriteLine("  " + curr);
-                            Console.WriteLine(keys.Count + " objects listed");
+                            Console.WriteLine("No objects");
+                        }
+                        else
+                        {
+                            Console.WriteLine(_EnumResult.ToTabularString());
                         }
                         break;
 
                     case "exists":
-                        key = InputString("Object name:", null, false);
-                        if (_Dedupe.ObjectExists(key))
+                        key = InputString("Object key:", null, false);
+                        if (_Dedupe.Exists(key))
                         {
                             Console.WriteLine("Object exists");
                         }
@@ -181,14 +156,15 @@ namespace Test.External
                         break;
 
                     case "stats":
-                        if (_Dedupe.IndexStats(out numObjects, out numChunks, out logicalBytes, out physicalBytes, out dedupeRatioX, out dedupeRatioPercent))
+                        _Stats = _Dedupe.IndexStats();
+                        if (_Stats != null)
                         {
                             Console.WriteLine("Statistics:");
-                            Console.WriteLine("  Number of objects : " + numObjects);
-                            Console.WriteLine("  Number of chunks  : " + numChunks);
-                            Console.WriteLine("  Logical bytes     : " + logicalBytes + " bytes");
-                            Console.WriteLine("  Physical bytes    : " + physicalBytes + " bytes");
-                            Console.WriteLine("  Dedupe ratio      : " + DecimalToString(dedupeRatioX) + "X, " + DecimalToString(dedupeRatioPercent) + "%");
+                            Console.WriteLine("  Number of objects : " + _Stats.Objects);
+                            Console.WriteLine("  Number of chunks  : " + _Stats.Chunks);
+                            Console.WriteLine("  Logical bytes     : " + _Stats.LogicalBytes + " bytes");
+                            Console.WriteLine("  Physical bytes    : " + _Stats.PhysicalBytes + " bytes");
+                            Console.WriteLine("  Dedupe ratio      : " + DecimalToString(_Stats.RatioX) + "X, " + DecimalToString(_Stats.RatioPercent) + "%");
                             Console.WriteLine("");
                         }
                         else
@@ -207,23 +183,17 @@ namespace Test.External
         {
             if (!Directory.Exists("Chunks")) Directory.CreateDirectory("Chunks");
 
-            _Database = new DatabaseClient(DbTypes.MySql, "127.0.0.1", 3306, "root", "password", null, "dedupe");
-
-            _DbProvider = new Database(_Database, _DebugSql);
-
-            if (_DbProvider.IsInitialized())
-            {
-                _Dedupe = new DedupeLibrary(_DbProvider, WriteChunk, ReadChunk, DeleteChunk, _DebugDedupe, _DebugSql);
-            }
-            else
-            {
-                _Dedupe = new DedupeLibrary(_DbProvider, 32768, 262144, 2048, 2, WriteChunk, ReadChunk, DeleteChunk, _DebugDedupe, _DebugSql);
-            }
+            _Settings = new DedupeSettings(32768, 262144, 2048, 2);
+            _Callbacks = new DedupeCallbacks(WriteChunk, ReadChunk, DeleteChunk);
+            _DbSettings = new DatabaseSettings(DbTypes.Mysql, "127.0.0.1", 3306, "root", "password", "dedupe");
+            _ORM = new WatsonORM(_DbSettings);
+            _DbProvider = new Database(_ORM);
+            _Dedupe = new DedupeLibrary(_DbProvider, _Settings, _Callbacks); 
         }
 
-        static bool WriteChunk(Chunk data)
+        static void WriteChunk(DedupeChunk data)
         {
-            File.WriteAllBytes("Chunks\\" + data.Key, data.Value);
+            // File.WriteAllBytes("Chunks\\" + data.Key, data.Value);
             using (var fs = new FileStream(
                 "Chunks\\" + data.Key,
                 FileMode.Create,
@@ -232,9 +202,8 @@ namespace Test.External
                 0x1000,
                 FileOptions.WriteThrough))
             {
-                fs.Write(data.Value, 0, data.Value.Length);
-            }
-            return true;
+                fs.Write(data.Data, 0, data.Data.Length);
+            } 
         }
 
         static byte[] ReadChunk(string key)
@@ -242,17 +211,9 @@ namespace Test.External
             return File.ReadAllBytes("Chunks\\" + key);
         }
 
-        static bool DeleteChunk(string key)
+        static void DeleteChunk(string key)
         {
-            try
-            {
-                File.Delete("Chunks\\" + key);
-            }
-            catch (Exception)
-            {
-
-            }
-            return true;
+            File.Delete("Chunks\\" + key);
         }
 
         static long GetContentLength(string filename)

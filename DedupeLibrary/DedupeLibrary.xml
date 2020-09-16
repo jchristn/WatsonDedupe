@@ -4,26 +4,6 @@
         <name>DedupeLibrary</name>
     </assembly>
     <members>
-        <member name="T:WatsonDedupe.CallbackMethods">
-            <summary>
-            Callback methods used to to read, write, or delete a chunk.
-            </summary>
-        </member>
-        <member name="P:WatsonDedupe.CallbackMethods.WriteChunk">
-            <summary>
-            Write a chunk.  Passes the Chunk object; you must return true. 
-            </summary>
-        </member>
-        <member name="P:WatsonDedupe.CallbackMethods.ReadChunk">
-            <summary>
-            Read a chunk.  Passes the the chunk's key as a string; you must return the byte array data of the chunk. 
-            </summary>
-        </member>
-        <member name="P:WatsonDedupe.CallbackMethods.DeleteChunk">
-            <summary>
-            Delete a chunk.  Passes the chunk's key; you must return true;
-            </summary>
-        </member>
         <member name="T:WatsonDedupe.Chunk">
             <summary>
             Represents a chunk of data identified during deduplication.
@@ -92,127 +72,131 @@
         </member>
         <member name="M:WatsonDedupe.Database.DbProvider.IsInitialized">
             <summary>
-            Method to determine if the database has been initialized, generally by checking for the existence of rows in the dedupe configuration table.
+            Method to indicate whether or not the database has been initialized.
             </summary>
             <returns>True if initialized.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.AddConfigData(System.String,System.String)">
+        <member name="M:WatsonDedupe.Database.DbProvider.AddConfigValue(System.String,System.String)">
             <summary> 
             Add configuration-related data by key for deduplication operations.
             </summary>
             <param name="key">Key.</param>
             <param name="val">Value.</param>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.GetConfigData(System.String,System.String@)">
+        <member name="M:WatsonDedupe.Database.DbProvider.GetConfigValue(System.String)">
             <summary>
             Retrieve configuration-related data by key for deduplication operations.
             </summary>
-            <param name="key">Key.</param>
-            <param name="val">Value.</param>
-            <returns>True if successful.</returns>
+            <param name="key">Key.</param> 
+            <returns>Value.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.ChunkExists(System.String)">
+        <member name="M:WatsonDedupe.Database.DbProvider.GetStatistics">
             <summary>
-            Check if a chunk exists.
-            </summary>
-            <param name="key">Key.</param>
-            <returns>True if exists.</returns>
+            Retrieve statistics for the index.
+            </summary> 
+            <returns>Index statistics.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.ObjectExists(System.String)">
+        <member name="M:WatsonDedupe.Database.DbProvider.ListObjects(System.String,System.Int32,System.Int32)">
+            <summary>
+            List the objects stored in the index.
+            </summary>
+            <param name="prefix">Prefix upon which to match object keys.</param>
+            <param name="indexStart">The index (DedupeObject.Id) from which to begin the enumeration.</param>
+            <param name="maxResults">Maximum number of results to retrieve.</param>
+            <return>Enumeration result.</return>
+        </member>
+        <member name="M:WatsonDedupe.Database.DbProvider.Exists(System.String)">
             <summary>
             Check if an object exists.
             </summary>
-            <param name="name">Object name.</param>
+            <param name="key">Object key.</param>
             <returns>True if exists.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.ListObjects(System.Collections.Generic.List{System.String}@)">
+        <member name="M:WatsonDedupe.Database.DbProvider.GetObjectMetadata(System.String)">
             <summary>
-            List objects stored in the database.
+            Retrieve metadata for an object by its key.
+            DedupeObjectMap objects returned should be ordered in ascending order based on the chunk's position or address.
             </summary>
-            <param name="names">List of object names.</param>
+            <param name="key">Object key.</param>
+            <returns>Object metadata.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.AddObjectChunk(System.String,System.Int64,WatsonDedupe.Chunk)">
+        <member name="M:WatsonDedupe.Database.DbProvider.GetChunkMetadata(System.String)">
             <summary>
-            Add a chunk for an object.
+            Retrieve metadata for a given chunk by its key.
             </summary>
-            <param name="name">Object name.</param>
-            <param name="totalLen">Total length of the object.</param>
-            <param name="chunk">Chunk.</param>
-            <returns>True if successful.</returns>
+            <param name="chunkKey">Chunk key.</param>
+            <returns>Chunk metadata.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.AddObjectChunks(System.String,System.Int64,System.Collections.Generic.List{WatsonDedupe.Chunk})">
-            <summary>
-            Add multiple chunks for an object.
-            </summary>
-            <param name="name">Object name.</param>
-            <param name="totalLen">Total length of the object.</param>
-            <param name="chunks">Chunks.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.GetObjectMetadata(System.String,WatsonDedupe.ObjectMetadata@)">
-            <summary>
-            Retrieve metadata for an object.
-            </summary>
-            <param name="name">Object name.</param>
-            <param name="metadata">Object metadata.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.GetObjectChunks(System.String,System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
+        <member name="M:WatsonDedupe.Database.DbProvider.GetChunks(System.String)">
             <summary>
             Retrieve chunks associated with an object.
             </summary>
-            <param name="name">Object name.</param>
-            <param name="chunks">Chunks.</param>
-            <returns>True if successful.</returns>
+            <param name="key">Object key.</param>
+            <returns>Chunks.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.DeleteObjectChunks(System.String,System.Collections.Generic.List{System.String}@)">
+        <member name="M:WatsonDedupe.Database.DbProvider.GetObjectMapForPosition(System.String,System.Int64)">
+            <summary>
+            Retrieve the object map containing the metadata for a given address within the original object.
+            </summary> 
+            <param name="key">Object key.</param>
+            <param name="position">Starting byte position.</param>
+            <returns>Dedupe object map.</returns>
+        </member>
+        <member name="M:WatsonDedupe.Database.DbProvider.GetObjectMap(System.String)">
+            <summary>
+            Retrieve the object map for a given object by key.
+            </summary>
+            <param name="key">Object key.</param>
+            <returns>Object map entries.</returns>
+        </member>
+        <member name="M:WatsonDedupe.Database.DbProvider.AddObject(System.String,System.Int64)">
+            <summary>
+            Add a new object to the index.
+            </summary>
+            <param name="key">Object key.</param>
+            <param name="length">The total length of the object.</param>
+        </member>
+        <member name="M:WatsonDedupe.Database.DbProvider.AddObjectMap(System.String,System.String,System.Int32,System.Int32,System.Int64)">
+            <summary>
+            Add an object map to an existing object.
+            </summary>
+            <param name="key">Object key.</param>
+            <param name="chunkKey">Chunk key.</param>
+            <param name="chunkLength">Chunk length.</param>
+            <param name="chunkPosition">Ordinal position of the chunk, i.e. 1, 2, ..., n.</param>
+            <param name="chunkAddress">Byte address of the chunk within the original object.</param>
+        </member>
+        <member name="M:WatsonDedupe.Database.DbProvider.IncrementChunkRefcount(System.String,System.Int32)">
+            <summary>
+            Increment reference count for a chunk by its key.  If the chunk does not exist, it is created.
+            </summary>
+            <param name="chunkKey">Chunk key.</param>
+            <param name="length">The chunk length, used when creating the chunk.</param>
+        </member>
+        <member name="M:WatsonDedupe.Database.DbProvider.Delete(System.String)">
             <summary>
             Delete an object and dereference the associated chunks.
             </summary>
-            <param name="name">The name of the object.</param>
-            <param name="garbageCollectChunks">List of chunk keys that should be garbage collected.</param>
+            <param name="key">Object key.</param>
+            <returns>List of chunk keys that should be garbage collected.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.IncrementChunkRefcount(System.String,System.Int64)">
+        <member name="M:WatsonDedupe.Database.DbProvider.DecrementChunkRefcount(System.String)">
             <summary>
-            Increment reference count for a chunk.
+            Decrement the reference count of a chunk by its key.  If the reference count reaches zero, the chunk is deleted.
             </summary>
-            <param name="key">Key.</param>
-            <param name="len">Length of the chunk.</param>
-            <returns>True if successful.</returns>
+            <param name="chunkKey">The chunk GUID.</param>
+            <returns>Boolean indicating if the chunk should be garbage collected.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.DecrementChunkRefcount(System.String,System.Boolean@)">
+        <member name="T:WatsonDedupe.Database.SqliteProvider">
             <summary>
-            Decrement reference count for a chunk.
+            Built-in Sqlite provider for WatsonDedupe.
             </summary>
-            <param name="key">Key.</param>
-            <param name="garbageCollect">True if the chunk data can be garbage collected.</param>
-            <returns>True if successful.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.IndexStats(System.Int32@,System.Int32@,System.Int64@,System.Int64@,System.Decimal@,System.Decimal@)">
-            <summary>
-            Retrieve statistics for the index.
-            </summary>
-            <param name="numObjects">The number of objects stored in the index.</param>
-            <param name="numChunks">The number of chunks stored in the index.</param>
-            <param name="logicalBytes">The amount of data stored in the index, i.e. the full size of the original data.</param>
-            <param name="physicalBytes">The number of bytes consumed by chunks of data, i.e. the deduplication set size.</param>
-            <param name="dedupeRatioX">Deduplication ratio represented as a multiplier.</param>
-            <param name="dedupeRatioPercent">Deduplication ratio represented as a percentage.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.Database.DbProvider.BackupDatabase(System.String)">
-            <summary>
-            Backup the deduplication database, not including chunk data, to another file.
-            </summary>
-            <param name="filename">The destination file.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.#ctor(System.String,System.Boolean)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.#ctor(System.String)">
             <summary>
             Instantiates the object
             </summary>
             <param name="indexFile">The index database file.</param>
-            <param name="debug">Enable or disable console logging.</param>
         </member>
         <member name="M:WatsonDedupe.Database.SqliteProvider.IsInitialized">
             <summary>
@@ -220,454 +204,828 @@
             </summary>
             <returns>True.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.AddConfigData(System.String,System.String)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.AddConfigValue(System.String,System.String)">
             <summary>
             Add a configuration key-value pair.
             </summary>
             <param name="key">The key.</param>
             <param name="val">The value.</param>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.GetConfigData(System.String,System.String@)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.GetConfigValue(System.String)">
             <summary>
             Retrieve a configuration value.
             </summary>
-            <param name="key">The key.</param>
-            <param name="val">The value.</param>
-            <returns>True if successful.</returns>
+            <param name="key">The key.</param> 
+            <returns>Value.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.ChunkExists(System.String)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.GetStatistics">
             <summary>
-            Determine if a chunk exists in the index.
-            </summary>
-            <param name="key">Chunk key.</param>
-            <returns>True if the chunk exists.</returns>
+            Retrieve index statistics.
+            </summary> 
+            <returns>Index statistics.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.ObjectExists(System.String)">
-            <summary>
-            Determine if an object exists in the index.
-            </summary>
-            <param name="name">The name of the object.</param>
-            <returns>True if the object exists.</returns>
-        </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.ListObjects(System.Collections.Generic.List{System.String}@)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.ListObjects(System.String,System.Int32,System.Int32)">
             <summary>
             List the objects stored in the index.
             </summary>
-            <param name="names">List of object keys.</param>
+            <param name="prefix">Prefix upon which to match object keys.</param>
+            <param name="indexStart">The index (DedupeObject.Id) from which to begin the enumeration.</param>
+            <param name="maxResults">Maximum number of results to retrieve.</param>
+            <return>Enumeration result.</return>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.AddObjectChunk(System.String,System.Int64,WatsonDedupe.Chunk)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.Exists(System.String)">
             <summary>
-            Add chunk from an object to the index.
+            Determine if an object exists in the index.
             </summary>
-            <param name="name">The name of the object.</param>
-            <param name="totalLen">The total length of the object.</param>
-            <param name="chunk">Chunk from the object..</param>
-            <returns>True if successful.</returns>
+            <param name="key">Object key.</param>
+            <returns>True if the object exists.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.AddObjectChunks(System.String,System.Int64,System.Collections.Generic.List{WatsonDedupe.Chunk})">
-            <summary>
-            Add chunks from an object to the index.
-            </summary>
-            <param name="name">The name of the object.</param>
-            <param name="totalLen">The total length of the object.</param>
-            <param name="chunks">The chunks from the object.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.GetObjectMetadata(System.String,WatsonDedupe.ObjectMetadata@)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.GetObjectMetadata(System.String)">
             <summary>
             Retrieve metadata for a given object.
+            DedupeObjectMap objects returned should be ordered in ascending order based on the chunk's position or address.
             </summary>
-            <param name="name">The name of the object.</param>
-            <param name="metadata">Object metadata.</param>
-            <returns>True if successful.</returns>
+            <param name="key">Object key.</param>
+            <returns>Object metadata.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.GetObjectChunks(System.String,System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.GetChunkMetadata(System.String)">
+            <summary>
+            Retrieve metadata for a given chunk by its key.
+            </summary>
+            <param name="chunkKey">Chunk key.</param>
+            <returns>Chunk metadata.</returns> 
+        </member>
+        <member name="M:WatsonDedupe.Database.SqliteProvider.GetChunks(System.String)">
             <summary>
             Retrieve chunk metadata for a given object.
             </summary>
-            <param name="name">The name of the object.</param>
-            <param name="chunks">Chunks associated with the object.</param>
-            <returns>True if successful.</returns>
+            <param name="key">Object key.</param>
+            <returns>Chunks associated with the object.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.DeleteObjectChunks(System.String,System.Collections.Generic.List{System.String}@)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.GetObjectMapForPosition(System.String,System.Int64)">
+            <summary>
+            Retrieve the object map containing the metadata for a given address within the original object.
+            </summary> 
+            <param name="key">Object key.</param>
+            <param name="position">Starting byte position.</param>
+            <returns>Dedupe object map.</returns>
+        </member>
+        <member name="M:WatsonDedupe.Database.SqliteProvider.GetObjectMap(System.String)">
+            <summary>
+            Retrieve the object map for a given object by key.
+            </summary>
+            <param name="key">Object key.</param>
+            <returns>Object map entries.</returns>
+        </member>
+        <member name="M:WatsonDedupe.Database.SqliteProvider.AddObject(System.String,System.Int64)">
+            <summary>
+            Add a new object to the index.
+            </summary>
+            <param name="key">Object key.</param>
+            <param name="length">The total length of the object.</param> 
+        </member>
+        <member name="M:WatsonDedupe.Database.SqliteProvider.AddObjectMap(System.String,System.String,System.Int32,System.Int32,System.Int64)">
+            <summary>
+            Add an object map to an existing object.
+            </summary>
+            <param name="key">Object key.</param>
+            <param name="chunkKey">Chunk key.</param>
+            <param name="chunkLength">Chunk length.</param>
+            <param name="chunkPosition">Ordinal position of the chunk, i.e. 1, 2, ..., n.</param>
+            <param name="chunkAddress">Byte address of the chunk within the original object.</param>
+        </member>
+        <member name="M:WatsonDedupe.Database.SqliteProvider.IncrementChunkRefcount(System.String,System.Int32)">
+            <summary>
+            Increment reference count for a chunk by its key.  If the chunk does not exist, it is created.
+            </summary>
+            <param name="chunkKey">Chunk key.</param>
+            <param name="length">The chunk length, used when creating the chunk.</param>
+        </member>
+        <member name="M:WatsonDedupe.Database.SqliteProvider.Delete(System.String)">
             <summary>
             Delete an object and dereference the associated chunks.
             </summary>
-            <param name="name">The name of the object.</param>
-            <param name="garbageCollectChunks">List of chunk keys that should be garbage collected.</param>
+            <param name="key">Object key.</param>
+            <returns>List of chunk keys that should be garbage collected.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.IncrementChunkRefcount(System.String,System.Int64)">
+        <member name="M:WatsonDedupe.Database.SqliteProvider.DecrementChunkRefcount(System.String)">
             <summary>
-            Increment the reference count of a chunk key, or insert the key.
+            Decrement the reference count of a chunk by its key.  If the reference count reaches zero, the chunk is deleted.
             </summary>
-            <param name="key">The chunk key.</param>
-            <param name="len">The length of the chunk.</param>
-            <returns>True if successful.</returns>
+            <param name="chunkKey">Chunk key.</param>
+            <returns>Boolean indicating if the chunk should be garbage collected.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.DecrementChunkRefcount(System.String,System.Boolean@)">
+        <member name="T:WatsonDedupe.DebugSettings">
             <summary>
-            Decrement the reference count of a chunk key, or delete the key.
+            Debug settings.
             </summary>
-            <param name="key">The chunk key.</param>
-            <param name="garbageCollect">Boolean indicating if the chunk should be garbage collected.</param>
-            <returns>True if successful.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.IndexStats(System.Int32@,System.Int32@,System.Int64@,System.Int64@,System.Decimal@,System.Decimal@)">
+        <member name="F:WatsonDedupe.DebugSettings.Enabled">
             <summary>
-            Retrieve index statistics.
+            Enable debugging of dedupe operations.
             </summary>
-            <param name="numObjects">The number of objects stored in the index.</param>
-            <param name="numChunks">The number of chunks stored in the index.</param>
-            <param name="logicalBytes">The amount of data stored in the index, i.e. the full size of the original data.</param>
-            <param name="physicalBytes">The number of bytes consumed by chunks of data, i.e. the deduplication set size.</param>
-            <param name="dedupeRatioX">Deduplication ratio represented as a multiplier.</param>
-            <param name="dedupeRatioPercent">Deduplication ratio represented as a percentage.</param>
-            <returns>True if successful.</returns>
         </member>
-        <member name="M:WatsonDedupe.Database.SqliteProvider.BackupDatabase(System.String)">
+        <member name="M:WatsonDedupe.DebugSettings.#ctor">
             <summary>
-            Backup the deduplication database, not including chunk data, to another file.
+            Instantiate the object.
             </summary>
-            <param name="filename">The destination file.</param>
-            <returns>True if successful.</returns>
+        </member>
+        <member name="T:WatsonDedupe.DedupeCallbacks">
+            <summary>
+            Callback methods used to to read, write, or delete a chunk.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeCallbacks.WriteChunk">
+            <summary>
+            Write a chunk.  Your software should persist the chunk to storage.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeCallbacks.ReadChunk">
+            <summary>
+            Read a chunk.  Your software should retrieve the chunk data as a byte array using the string key supplied.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeCallbacks.DeleteChunk">
+            <summary>
+            Delete a chunk.  Your software should delete the chunk associated with the supplied string key.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeCallbacks.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeCallbacks.#ctor(System.Action{WatsonDedupe.DedupeChunk},System.Func{System.String,System.Byte[]},System.Action{System.String})">
+            <summary>
+            Instantiate the object.
+            </summary>
+            <param name="writeChunk">Function with no return value used to write a chunk.</param>
+            <param name="readChunk">Function returning a byte[] used to read a chunk's data.</param>
+            <param name="deleteChunk">Function with no return value used to delete a chunk.</param>
+        </member>
+        <member name="T:WatsonDedupe.DedupeChunk">
+            <summary>
+            Chunk identified in one or many deduplicated object.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeChunk.Id">
+            <summary>
+            Database ID.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeChunk.Key">
+            <summary>
+            Chunk key.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeChunk.Length">
+            <summary>
+            Length of the chunk.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeChunk.RefCount">
+            <summary>
+            Reference count for the chunk.
+            </summary>
+        </member>
+        <member name="F:WatsonDedupe.DedupeChunk.Data">
+            <summary>
+            Chunk data.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeChunk.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeChunk.#ctor(System.String,System.Int32,System.Int32)">
+            <summary>
+            Instantiate the object.
+            </summary>
+            <param name="key">Chunk key.</param>
+            <param name="length">Length of the chunk.</param>
+            <param name="refCount">Reference count for the chunk.</param>
+        </member>
+        <member name="M:WatsonDedupe.DedupeChunk.#ctor(System.String,System.Int32,System.Int32,System.Byte[])">
+            <summary>
+            Instantiate the object.
+            </summary>
+            <param name="key">Chunk key.</param>
+            <param name="length">Length of the chunk.</param>
+            <param name="refCount">Reference count for the chunk.</param>
+            <param name="data">Byte data.</param>
+        </member>
+        <member name="T:WatsonDedupe.DedupeCommon">
+            <summary>
+            Commonly-used static methods.
+            </summary>
+        </member>
+        <member name="T:WatsonDedupe.DedupeConfig">
+            <summary>
+            Dedupe configuration setting
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeConfig.Id">
+            <summary>
+            Database ID.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeConfig.Key">
+            <summary>
+            Chunk key.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeConfig.Value">
+            <summary>
+            Length of the chunk.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeConfig.GUID">
+            <summary>
+            Config key-value pair GUID.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeConfig.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeConfig.#ctor(System.String,System.String)">
+            <summary>
+            Instantiate the object.
+            </summary>
+            <param name="key">Key.</param>
+            <param name="val">Value.</param>
         </member>
         <member name="T:WatsonDedupe.DedupeLibrary">
             <summary>
             Library for deduplication of objects.
             </summary>
         </member>
-        <member name="F:WatsonDedupe.DedupeLibrary.DebugDedupe">
-            <summary>
-            Enable or disable console logging for deduplication operations.
-            </summary>
-        </member>
-        <member name="F:WatsonDedupe.DedupeLibrary.DebugSql">
-            <summary>
-            Enable or disable console logging for SQL operations.
-            </summary>
-        </member>
-        <member name="F:WatsonDedupe.DedupeLibrary.Callbacks">
+        <member name="P:WatsonDedupe.DedupeLibrary.Callbacks">
             <summary>
             Callback methods used by the dedupe library to read, write, and delete chunks.
             </summary>
         </member>
+        <member name="P:WatsonDedupe.DedupeLibrary.Settings">
+            <summary>
+            Deduplication settings.
+            </summary>
+        </member>
+        <member name="F:WatsonDedupe.DedupeLibrary.Logger">
+            <summary>
+            Method to invoke when sending log messages.
+            </summary>
+        </member>
         <member name="P:WatsonDedupe.DedupeLibrary.Database">
             <summary>
-            Specify the database provider.  If null, a local Sqlite database will be used.
+            Database provider.
             </summary>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.#ctor(System.String,System.Func{WatsonDedupe.Chunk,System.Boolean},System.Func{System.String,System.Byte[]},System.Func{System.String,System.Boolean},System.Boolean,System.Boolean)">
+        <member name="M:WatsonDedupe.DedupeLibrary.#ctor(System.String,WatsonDedupe.DedupeSettings,WatsonDedupe.DedupeCallbacks)">
             <summary>
-            Initialize an existing index using an internal Sqlite database.
+            Initialize a new or existing index using an internal Sqlite database.
             </summary>
             <param name="indexFile">Path and filename.</param>
-            <param name="writeChunkMethod">Method to call to write a chunk to storage.</param>
-            <param name="readChunkMethod">Method to call to read a chunk from storage.</param>
-            <param name="deleteChunkMethod">Method to call to delete a chunk from storage.</param>
-            <param name="debugDedupe">Enable console logging for deduplication operations.</param>
-            <param name="debugSql">Enable console logging for SQL operations.</param>
+            <param name="settings">Deduplication settings.</param>
+            <param name="callbacks">Object containing callback functions for writing, reading, and deleting chunks.</param>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.#ctor(WatsonDedupe.Database.DbProvider,System.Func{WatsonDedupe.Chunk,System.Boolean},System.Func{System.String,System.Byte[]},System.Func{System.String,System.Boolean},System.Boolean,System.Boolean)">
+        <member name="M:WatsonDedupe.DedupeLibrary.#ctor(WatsonDedupe.Database.DbProvider,WatsonDedupe.DedupeSettings,WatsonDedupe.DedupeCallbacks)">
             <summary>
             Initialize an existing index using an external database.  Tables must be created ahead of time.
             </summary>
             <param name="database">Database provider implemented using the Database.DbProvider class.</param>
-            <param name="writeChunkMethod">Method to call to write a chunk to storage.</param>
-            <param name="readChunkMethod">Method to call to read a chunk from storage.</param>
-            <param name="deleteChunkMethod">Method to call to delete a chunk from storage.</param>
-            <param name="debugDedupe">Enable console logging for deduplication operations.</param>
-            <param name="debugSql">Enable console logging for SQL operations.</param>
+            <param name="settings">Deduplication settings.</param>
+            <param name="callbacks">Object containing callback functions for writing, reading, and deleting chunks.</param>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.#ctor(System.String,System.Int32,System.Int32,System.Int32,System.Int32,System.Func{WatsonDedupe.Chunk,System.Boolean},System.Func{System.String,System.Byte[]},System.Func{System.String,System.Boolean},System.Boolean,System.Boolean)">
+        <member name="M:WatsonDedupe.DedupeLibrary.Write(System.String,System.String)">
             <summary>
-            Create a new index using an internal Sqlite database.
+            Write an object to the deduplication index.
             </summary>
-            <param name="indexFile">Path and filename.</param>
-            <param name="minChunkSize">Minimum chunk size, must be divisible by 8, divisible by 64, and 128 or greater.</param>
-            <param name="maxChunkSize">Maximum chunk size, must be divisible by 8, divisible by 64, and at least 8 times larger than minimum chunk size.</param>
-            <param name="shiftCount">Number of bytes to shift while identifying chunk boundaries, must be less than or equal to minimum chunk size.</param>
-            <param name="boundaryCheckBytes">Number of bytes to examine while checking for a chunk boundary, must be 8 or fewer.</param>
-            <param name="writeChunkMethod">Method to call to write a chunk to storage.</param>
-            <param name="readChunkMethod">Method to call to read a chunk from storage.</param>
-            <param name="deleteChunkMethod">Method to call to delete a chunk from storage.</param>
-            <param name="debugDedupe">Enable console logging for deduplication operations.</param>
-            <param name="debugSql">Enable console logging for SQL operations.</param>
+            <param name="key">The object key.  Must be unique in the index.</param>
+            <param name="data">The string data for the object.</param> 
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.#ctor(WatsonDedupe.Database.DbProvider,System.Int32,System.Int32,System.Int32,System.Int32,System.Func{WatsonDedupe.Chunk,System.Boolean},System.Func{System.String,System.Byte[]},System.Func{System.String,System.Boolean},System.Boolean,System.Boolean)">
+        <member name="M:WatsonDedupe.DedupeLibrary.Write(System.String,System.Byte[])">
             <summary>
-            Create a new index using an external database.  Tables must be created ahead of time.
+            Write an object to the deduplication index.
             </summary>
-            <param name="database">Database provider implemented using the Database.DbProvider class.</param>
-            <param name="minChunkSize">Minimum chunk size, must be divisible by 8, divisible by 64, and 128 or greater.</param>
-            <param name="maxChunkSize">Maximum chunk size, must be divisible by 8, divisible by 64, and at least 8 times larger than minimum chunk size.</param>
-            <param name="shiftCount">Number of bytes to shift while identifying chunk boundaries, must be less than or equal to minimum chunk size.</param>
-            <param name="boundaryCheckBytes">Number of bytes to examine while checking for a chunk boundary, must be 8 or fewer.</param>
-            <param name="writeChunkMethod">Method to call to write a chunk to storage.</param>
-            <param name="readChunkMethod">Method to call to read a chunk from storage.</param>
-            <param name="deleteChunkMethod">Method to call to delete a chunk from storage.</param>
-            <param name="debugDedupe">Enable console logging for deduplication operations.</param>
-            <param name="debugSql">Enable console logging for SQL operations.</param>
+            <param name="key">The object key.  Must be unique in the index.</param>
+            <param name="bytes">The byte data for the object.</param> 
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.StoreObject(System.String,System.Byte[],System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.Write(System.String,System.Int64,System.IO.Stream)">
             <summary>
-            Store an object in the deduplication index.
+            Write an object to the deduplication index.
             </summary>
-            <param name="objectName">The name of the object.  Must be unique in the index.</param>
-            <param name="data">The byte data for the object.</param>
-            <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.StoreObject(System.String,System.Int64,System.IO.Stream,System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
-            <summary>
-            Store an object in the deduplication index.
-            </summary>
-            <param name="objectName">The name of the object.  Must be unique in the index.</param>
+            <param name="key">The object key.  Must be unique in the index.</param>
             <param name="contentLength">The length of the data.</param>
-            <param name="stream">The stream containing the data.</param>
-            <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-            <returns>True if successful.</returns>
+            <param name="stream">The stream containing the data.</param> 
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.StoreObject(System.String,WatsonDedupe.CallbackMethods,System.Byte[],System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.Write(System.String,WatsonDedupe.DedupeCallbacks,System.String)">
             <summary>
-            Store an object in the deduplication index.
+            Write an object to the deduplication index.
             This method will use the callbacks supplied in the method signature.
             </summary>
-            <param name="objectName">The name of the object.  Must be unique in the index.</param>
+            <param name="key">The object key.  Must be unique in the index.</param>
             <param name="callbacks">CallbackMethods object containing callback methods.</param>
-            <param name="data">The byte data for the object.</param>
-            <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-            <returns>True if successful.</returns>
+            <param name="data">The string data for the object.</param> 
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.StoreObject(System.String,WatsonDedupe.CallbackMethods,System.Int64,System.IO.Stream,System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.Write(System.String,WatsonDedupe.DedupeCallbacks,System.Byte[])">
             <summary>
-            Store an object in the deduplication index.
+            Write an object to the deduplication index.
             This method will use the callbacks supplied in the method signature.
             </summary>
-            <param name="objectName">The name of the object.  Must be unique in the index.</param>
+            <param name="key">The object key.  Must be unique in the index.</param>
             <param name="callbacks">CallbackMethods object containing callback methods.</param>
-            <param name="contentLength">The length of the data.</param>
-            <param name="stream">The stream containing the data.</param>
-            <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-            <returns>True if successful.</returns>
+            <param name="bytes">The byte data for the object.</param> 
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.StoreOrReplaceObject(System.String,System.Byte[],System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.Write(System.String,WatsonDedupe.DedupeCallbacks,System.Int64,System.IO.Stream)">
             <summary>
-            Store an object within a container in the deduplication index if it doesn't already exist, or, replace the object if it does.
-            </summary>
-            <param name="objectName">The name of the object.  Must be unique in the index.</param>
-            <param name="data">The byte data for the object.</param>
-            <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.StoreOrReplaceObject(System.String,System.Int64,System.IO.Stream,System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
-            <summary>
-            Store an object within a container in the deduplication index if it doesn't already exist, or, replace the object if it does.
-            </summary>
-            <param name="objectName">The name of the object.  Must be unique in the index.</param>
-            <param name="contentLength">The length of the data.</param>
-            <param name="stream">The stream containing the data.</param>
-            <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.StoreOrReplaceObject(System.String,WatsonDedupe.CallbackMethods,System.Byte[],System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
-            <summary>
-            Store an object within a container in the deduplication index if it doesn't already exist, or, replace the object if it does.
+            Write an object to the deduplication index.
             This method will use the callbacks supplied in the method signature.
             </summary>
-            <param name="objectName">The name of the object.  Must be unique in the index.</param>
-            <param name="callbacks">CallbackMethods object containing callback methods.</param>
-            <param name="data">The byte data for the object.</param>
-            <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.StoreOrReplaceObject(System.String,WatsonDedupe.CallbackMethods,System.Int64,System.IO.Stream,System.Collections.Generic.List{WatsonDedupe.Chunk}@)">
-            <summary>
-            Store an object within a container in the deduplication index if it doesn't already exist, or, replace the object if it does.
-            This method will use the callbacks supplied in the method signature.
-            </summary>
-            <param name="objectName">The name of the object.  Must be unique in the index.</param>
+            <param name="key">The object key.  Must be unique in the index.</param>
             <param name="callbacks">CallbackMethods object containing callback methods.</param>
             <param name="contentLength">The length of the data.</param>
-            <param name="stream">The stream containing the data.</param>
-            <param name="chunks">The list of chunks identified during the deduplication operation.</param>
-            <returns>True if successful.</returns>
+            <param name="stream">The stream containing the data.</param> 
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.RetrieveObjectMetadata(System.String,WatsonDedupe.ObjectMetadata@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.WriteOrReplace(System.String,System.Byte[])">
+            <summary>
+            Write an object to the deduplication index if it doesn't already exist, or, replace the object if it does.
+            </summary>
+            <param name="key">The object key.  Must be unique in the index.</param>
+            <param name="data">The byte data for the object.</param> 
+        </member>
+        <member name="M:WatsonDedupe.DedupeLibrary.WriteOrReplace(System.String,System.Int64,System.IO.Stream)">
+            <summary>
+            Write an object to the deduplication index if it doesn't already exist, or, replace the object if it does.
+            </summary>
+            <param name="key">The object key.  Must be unique in the index.</param>
+            <param name="contentLength">The length of the data.</param>
+            <param name="stream">The stream containing the data.</param> 
+        </member>
+        <member name="M:WatsonDedupe.DedupeLibrary.WriteOrReplace(System.String,WatsonDedupe.DedupeCallbacks,System.Byte[])">
+            <summary>
+            Write an object to the deduplication index if it doesn't already exist, or, replace the object if it does.
+            This method will use the callbacks supplied in the method signature.
+            </summary>
+            <param name="key">The object key.  Must be unique in the index.</param>
+            <param name="callbacks">CallbackMethods object containing callback methods.</param>
+            <param name="data">The byte data for the object.</param> 
+        </member>
+        <member name="M:WatsonDedupe.DedupeLibrary.WriteOrReplace(System.String,WatsonDedupe.DedupeCallbacks,System.Int64,System.IO.Stream)">
+            <summary>
+            Write an object to the deduplication index if it doesn't already exist, or, replace the object if it does.
+            This method will use the callbacks supplied in the method signature.
+            </summary>
+            <param name="key">The object key.  Must be unique in the index.</param>
+            <param name="callbacks">CallbackMethods object containing callback methods.</param>
+            <param name="contentLength">The length of the data.</param>
+            <param name="stream">The stream containing the data.</param> 
+        </member>
+        <member name="M:WatsonDedupe.DedupeLibrary.GetMetadata(System.String)">
             <summary>
             Retrieve metadata about an object from the deduplication index.
             </summary>
-            <param name="objectName">The name of the object.</param>
-            <param name="md">Object metadata.</param>
-            <returns>True if successful.</returns>
+            <param name="key">The object key.</param>
+            <returns>Object metadata.</returns>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.RetrieveObjectMetadata(System.String,System.Boolean,WatsonDedupe.ObjectMetadata@)">
-            <summary>
-            Retrieve metadata about an object from the deduplication index.
-            </summary>
-            <param name="objectName">The name of the object.</param>
-            <param name="includeChunks">Set to true to include metadata about associated chunks.</param>
-            <param name="md">Object metadata.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.RetrieveObject(System.String,System.Byte[]@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.Get(System.String)">
             <summary>
             Retrieve an object from the deduplication index.
             </summary>
-            <param name="objectName">The name of the object.</param>
-            <param name="data">The byte data from the object.</param>
-            <returns>True if successful.</returns>
+            <param name="key">The object key.</param>
+            <returns>Object data.</returns>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.RetrieveObject(System.String,System.Int64@,System.IO.Stream@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.TryGet(System.String,WatsonDedupe.DedupeObject@)">
             <summary>
             Retrieve an object from the deduplication index.
             </summary>
-            <param name="objectName">The name of the object.</param>
-            <param name="contentLength">The length of the data.</param>
-            <param name="stream">The stream containing the data.</param>
+            <param name="key">The object key.</param>
+            <param name="data">Object data.</param>
             <returns>True if successful.</returns>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.RetrieveObject(System.String,WatsonDedupe.CallbackMethods,System.Byte[]@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.Get(System.String,WatsonDedupe.DedupeCallbacks)">
             <summary>
             Retrieve an object from the deduplication index.
             This method will use the callbacks supplied in the method signature.
             </summary>
-            <param name="objectName">The name of the object.</param>
+            <param name="key">The object key.</param>
             <param name="callbacks">CallbackMethods object containing callback methods.</param>
-            <param name="data">The byte data from the object.</param>
-            <returns>True if successful.</returns>
+            <returns>Object data.</returns>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.RetrieveObject(System.String,WatsonDedupe.CallbackMethods,System.Int64@,System.IO.Stream@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.GetStream(System.String)">
             <summary>
-            Retrieve an object from the deduplication index.
-            This method will use the callbacks supplied in the method signature.
+            Retrieve a read-only stream over an object that has been stored.
             </summary>
-            <param name="objectName">The name of the object.</param>
+            <param name="key">The object key.</param>
+            <returns>Read-only stream.</returns>
+        </member>
+        <member name="M:WatsonDedupe.DedupeLibrary.GetStream(System.String,WatsonDedupe.DedupeCallbacks)">
+            <summary>
+            Retrieve a read-only stream over an object that has been stored.
+            </summary>
+            <param name="key">The object key.</param>
             <param name="callbacks">CallbackMethods object containing callback methods.</param>
-            <param name="contentLength">The length of the data.</param>
-            <param name="stream">The stream containing the data.</param>
+            <returns>Read-only stream.</returns>
+        </member>
+        <member name="M:WatsonDedupe.DedupeLibrary.TryGetStream(System.String,WatsonDedupe.DedupeStream@)">
+            <summary>
+            Retrieve a read-only stream over an object that has been stored.
+            </summary>
+            <param name="key">The object key.</param>
+            <param name="data">Read-only stream.</param>
             <returns>True if successful.</returns>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.DeleteObject(System.String)">
+        <member name="M:WatsonDedupe.DedupeLibrary.TryGetStream(System.String,WatsonDedupe.DedupeCallbacks,WatsonDedupe.DedupeStream@)">
+            <summary>
+            Retrieve a read-only stream over an object that has been stored.
+            </summary>
+            <param name="key">The object key.</param>
+            <param name="callbacks">CallbackMethods object containing callback methods.</param>
+            <param name="data">Read-only stream.</param>
+            <returns>True if successful.</returns>
+        </member>
+        <member name="M:WatsonDedupe.DedupeLibrary.Delete(System.String)">
             <summary>
             Delete an object stored in the deduplication index.
             </summary>
-            <param name="objectName">The name of the object.</param>
-            <returns>True if successful.</returns>
+            <param name="key">The object key.</param>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.DeleteObject(System.String,WatsonDedupe.CallbackMethods)">
+        <member name="M:WatsonDedupe.DedupeLibrary.Delete(System.String,WatsonDedupe.DedupeCallbacks)">
             <summary>
             Delete an object stored in the deduplication index.
             This method will use the callbacks supplied in the method signature.
             </summary>
-            <param name="objectName">The name of the object.</param>
+            <param name="key">The object key.</param>
             <param name="callbacks">CallbackMethods object containing callback methods.</param>
-            <returns>True if successful.</returns>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.ListObjects(System.Collections.Generic.List{System.String}@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.ListObjects">
             <summary>
-            List the objects stored in the deduplication index.
+            List the object keys stored in the deduplication index.
             </summary>
-            <param name="keys">List of object names.</param>
+            <returns>Enumeration result.</returns>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.ObjectExists(System.String)">
+        <member name="M:WatsonDedupe.DedupeLibrary.ListObjects(System.String)">
+            <summary>
+            List the object keys stored in the deduplication index.
+            </summary>
+            <returns>Enumeration result.</returns>
+        </member>
+        <member name="M:WatsonDedupe.DedupeLibrary.ListObjects(System.String,System.Int32,System.Int32)">
+            <summary>
+            List the object keys stored in the deduplication index.
+            </summary>
+            <returns>Enumeration result.</returns>
+        </member>
+        <member name="M:WatsonDedupe.DedupeLibrary.Exists(System.String)">
             <summary>
             Determine if an object exists in the index.
             </summary>
-            <param name="objectName">The name of the object.</param>
+            <param name="key">The object key.</param>
             <returns>Boolean indicating if the object exists.</returns>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.ChunkExists(System.String)">
-            <summary>
-            Determine if a chunk exists in the index.
-            </summary>
-            <param name="chunkKey">The chunk's key.</param>
-            <returns>Boolean indicating if the chunk exists.</returns>
-        </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.IndexStats(System.Int32@,System.Int32@,System.Int64@,System.Int64@,System.Decimal@,System.Decimal@)">
+        <member name="M:WatsonDedupe.DedupeLibrary.IndexStats">
             <summary>
             Retrieve deduplication index statistics.
             </summary>
-            <param name="numObjects">The number of objects stored in the index.</param>
-            <param name="numChunks">Number of chunks referenced in the index.</param>
-            <param name="logicalBytes">The amount of data stored in the index, i.e. the full size of the original data.</param>
-            <param name="physicalBytes">The number of bytes consumed by chunks of data, i.e. the deduplication set size.</param>
-            <param name="dedupeRatioX">Deduplication ratio represented as a multiplier.</param>
-            <param name="dedupeRatioPercent">Deduplication ratio represented as a percentage.</param>
-            <returns>True if successful.</returns>
+            <returns>Index statistics.</returns>
         </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.BackupIndex(System.String)">
+        <member name="T:WatsonDedupe.DedupeObject">
             <summary>
-            Copies the index database to another file.
-            </summary>
-            <param name="destination">The destination file.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="M:WatsonDedupe.DedupeLibrary.ImportObjectMetadata(WatsonDedupe.ObjectMetadata)">
-            <summary>
-            Import an object metadata record.  Do not use this API unless you are synchronizing metadata from another source for an object and chunks already stored.
-            </summary>
-            <param name="md">Object metadata.</param>
-            <returns>True if successful.</returns>
-        </member>
-        <member name="T:WatsonDedupe.ObjectMetadata">
-            <summary>
-            Metadata about a stored object.
+            Deduplicated object stored in the index.
             </summary>
         </member>
-        <member name="P:WatsonDedupe.ObjectMetadata.ObjectMapId">
+        <member name="P:WatsonDedupe.DedupeObject.Id">
             <summary>
-            Object map ID.
+            Database ID.
             </summary>
         </member>
-        <member name="P:WatsonDedupe.ObjectMetadata.Name">
+        <member name="P:WatsonDedupe.DedupeObject.Key">
             <summary>
-            The name of the object.
+            Object key.
             </summary>
         </member>
-        <member name="P:WatsonDedupe.ObjectMetadata.ContentLength">
+        <member name="P:WatsonDedupe.DedupeObject.Length">
             <summary>
-            The length of the object.
+            Length of the object.
             </summary>
         </member>
-        <member name="P:WatsonDedupe.ObjectMetadata.ChunkCount">
+        <member name="P:WatsonDedupe.DedupeObject.CreatedUtc">
             <summary>
-            The number of chunks associated with the object.
+            Creation timestamp in UTC time.
             </summary>
         </member>
-        <member name="P:WatsonDedupe.ObjectMetadata.ChunkLength">
+        <member name="F:WatsonDedupe.DedupeObject.Chunks">
             <summary>
-            The length of all chunks.
+            List of chunks that comprise the object.
             </summary>
         </member>
-        <member name="P:WatsonDedupe.ObjectMetadata.Chunks">
+        <member name="F:WatsonDedupe.DedupeObject.ObjectMap">
             <summary>
-            Chunks associated with the object.
+            Object map indicating chunk positions.
             </summary>
         </member>
-        <member name="M:WatsonDedupe.ObjectMetadata.#ctor">
+        <member name="M:WatsonDedupe.DedupeObject.#ctor">
             <summary>
             Instantiate the object.
             </summary>
         </member>
-        <member name="M:WatsonDedupe.ObjectMetadata.FromDataRow(System.Data.DataRow)">
+        <member name="M:WatsonDedupe.DedupeObject.#ctor(System.String,System.Int64)">
             <summary>
-            Retrieve object metadata from a DataRow.  This will not populate chunk-related fields.
+            Instantiate the object.
             </summary>
-            <param name="row">DataRow.</param>
-            <returns>Object metadata.</returns>
+            <param name="key">Object key.</param>
+            <param name="length">Object length.</param>
         </member>
-        <member name="M:WatsonDedupe.ObjectMetadata.FromDataTable(System.Data.DataTable)">
+        <member name="P:WatsonDedupe.DedupeObject.Data">
             <summary>
-            Retrieve object metadata from a DataTable. 
+            Data from the object.  Using this property will fully read the stream.
             </summary>
-            <param name="table">DataTable.</param>
-            <returns>Object metadata.</returns>
         </member>
-        <member name="M:WatsonDedupe.ObjectMetadata.ToString">
+        <member name="P:WatsonDedupe.DedupeObject.DataStream">
             <summary>
-            Display a human-readable string.
+            Stream containing data from the object.
             </summary>
-            <returns>String.</returns>
+        </member>
+        <member name="M:WatsonDedupe.DedupeObject.ToString">
+            <summary>
+            Human-readable string version of the object.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:WatsonDedupe.DedupeObjectMap">
+            <summary>
+            Object that maps a dedupe chunk to a range within a deduplicated object.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeObjectMap.Id">
+            <summary>
+            Database ID.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeObjectMap.ObjectKey">
+            <summary>
+            Object key.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeObjectMap.ChunkKey">
+            <summary>
+            Chunk key.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeObjectMap.ChunkLength">
+            <summary>
+            Chunk length.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeObjectMap.ChunkPosition">
+            <summary>
+            The ordinal position of the chunk.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeObjectMap.ChunkAddress">
+            <summary>
+            The byte position of the chunk within the original object.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeObjectMap.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeObjectMap.#ctor(System.String,System.String,System.Int32,System.Int32,System.Int64)">
+            <summary>
+            Instantiate the object.
+            </summary>
+            <param name="objKey">Object key.</param>
+            <param name="chunkKey">Chunk key.</param>
+            <param name="chunkLength">Chunk length.</param>
+            <param name="chunkPosition">The ordinal position of the chunk.</param>
+            <param name="chunkAddress">The byte position of the chunk within the original object.</param>
+        </member>
+        <member name="T:WatsonDedupe.DedupeSettings">
+            <summary>
+            Settings that dictate how deduplication operates internally.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeSettings.MinChunkSize">
+            <summary>
+            The minimum amount of data that can be considered an independent chunk of data upon which to identify duplicates.
+            With smaller values, the probability of finding redundancy increases, but comes at the cost of processing time and computation.
+            With larger values, processing times are faster, but less redundancy is identified.
+            Use smaller values when attempting to deduplicate within a file and larger values when deduplicating across files.
+            This value must be a positive integer evenly divisible by 64, and must be at least 256.
+            Default is 1024.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeSettings.MaxChunkSize">
+            <summary>
+            The maximum amount of data that can be considered an independent chunk of data upon which to identify duplicates.
+            With smaller values, the probability of finding redundancy increases, but comes at the cost of processing time and computation.
+            With larger values, processing times are faster, but less redundancy is identified.
+            Use smaller values when attempting to deduplicate within a file and larger values when deduplicating across files.
+            This value must be greater than the minimum chunk size and no larger than 8 times the minimum chunk size.
+            This value must be a positive integer evenly divisible by 64, and must be at least 2048.
+            Default is 32768.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeSettings.ShiftCount">
+            <summary>
+            The number of bytes to shift to mathematically re-evaluate content in the sliding window for a chunk boundary.
+            With smaller values, more chunk boundaries will be detected at the cost of processing time and computation.
+            This value must be less than the minimum chunk size.
+            It is recommended that this value be approximately 1/32 the size of the minimum chunk size.
+            Default is 32.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeSettings.BoundaryCheckBytes">
+            <summary>
+            The number of bytes to evaluate at the end of the sliding window to determine if a chunk boundary has been identified.
+            With smaller values, it is more likely that chunks will be identified.
+            With larger values, it is less likely that chunks will be identified.
+            Use smaller values (i.e. 1) when working with documents, and larger values (i.e. 3 or 4) when working with large blocks of data.
+            This value must be a positive integer between 1 and 4.
+            Default is 2.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeSettings.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeSettings.#ctor(System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Instantiate the object.
+            </summary>
+            <param name="minChunkSize"></param>
+            <param name="maxChunkSize"></param>
+            <param name="shiftCount"></param>
+            <param name="boundaryCheckBytes"></param>
+        </member>
+        <member name="T:WatsonDedupe.DedupeStream">
+            <summary>
+            A read-only stream over a deduplicated object.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeStream.CanRead">
+            <summary>
+            Indicates if the stream allows read operations.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeStream.CanSeek">
+            <summary>
+            Indicates if the stream allows seek operations.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeStream.CanWrite">
+            <summary>
+            Indicates if the stream allows write operations.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeStream.Length">
+            <summary>
+            Indicates the length of the content contained within the stream.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.DedupeStream.Position">
+            <summary>
+            Indicates the current position within the stream.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeStream.Flush">
+            <summary>
+            Not supported.  This method will throw a NotSupportedException.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.DedupeStream.Read(System.Byte[],System.Int32,System.Int32)">
+            <summary>
+            Read data from the stream into the specified buffer and increment the stream position.
+            </summary>
+            <param name="buffer">Byte array to use as a buffer.</param>
+            <param name="offset">The offset within the buffer indicating where to copy the read data.</param>
+            <param name="count">The number of bytes to populate within the buffer.</param>
+            <returns>An integer representing the number of bytes read.</returns>
+        </member>
+        <member name="M:WatsonDedupe.DedupeStream.Seek(System.Int64,System.IO.SeekOrigin)">
+            <summary>
+            Seek to the specified position within the stream.
+            </summary>
+            <param name="offset">Offset.</param>
+            <param name="origin">SeekOrigin.</param>
+            <returns>New position.</returns>
+        </member>
+        <member name="M:WatsonDedupe.DedupeStream.SetLength(System.Int64)">
+            <summary>
+            Not supported.  This method will throw a NotSupportedException.
+            Set the length of the stream.
+            </summary>
+            <param name="value">Length.</param>
+        </member>
+        <member name="M:WatsonDedupe.DedupeStream.Write(System.Byte[],System.Int32,System.Int32)">
+            <summary>
+            Not supported.  This method will throw a NotSupportedException.
+            </summary>
+            <param name="buffer">Byte array.</param>
+            <param name="offset">Offset.</param>
+            <param name="count">Number of bytes.</param>
+        </member>
+        <member name="T:WatsonDedupe.EnumerationResult">
+            <summary>
+            Enumeration result.
+            </summary>
+        </member>
+        <member name="F:WatsonDedupe.EnumerationResult.Prefix">
+            <summary>
+            Prefix.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.EnumerationResult.IndexStart">
+            <summary>
+            Index from which the enumeration should begin.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.EnumerationResult.NextIndexStart">
+            <summary>
+            IndexStart value that should be used to continue enumeration.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.EnumerationResult.MaxResults">
+            <summary>
+            Maximum number of results requested.
+            </summary>
+        </member>
+        <member name="F:WatsonDedupe.EnumerationResult.Objects">
+            <summary>
+            List of object metadata.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.EnumerationResult.#ctor(System.String,System.Int32,System.Int32,System.Int32,System.Collections.Generic.List{WatsonDedupe.DedupeObject})">
+            <summary>
+            Instantiate the object.
+            </summary>
+            <param name="prefix">Prefix.</param>
+            <param name="indexStart">Continuation token supplied in this enumeration query.</param>
+            <param name="nextIndexStart">Continuation token that should be used to continue the enumeration.</param>
+            <param name="maxResults">Maximum number of results requested.</param>
+            <param name="objects">List of object metadata.</param>
+        </member>
+        <member name="M:WatsonDedupe.EnumerationResult.ToString">
+            <summary>
+            Human-readable string version of the object.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:WatsonDedupe.EnumerationResult.ToTabularString">
+            <summary>
+            Human-readable string version of the object with tabular output for objects.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:WatsonDedupe.IndexStatistics">
+            <summary>
+            Deduplication index statistics.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.IndexStatistics.Objects">
+            <summary>
+            The number of objects stored in the index.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.IndexStatistics.Chunks">
+            <summary>
+            The number of chunks stored in the index.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.IndexStatistics.LogicalBytes">
+            <summary>
+            The amount of data stored in the index, i.e. a sum of the content length of all objects.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.IndexStatistics.PhysicalBytes">
+            <summary>
+            The physical data stored as chunks in support of index objects, i.e. the amount of deduplicated data.
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.IndexStatistics.RatioX">
+            <summary>
+            The deduplication ratio represented as a multiplier, i.e. 3X deduplication means 3MB of logical data (objects) has been reduced to 1MB of physical data (chunks).
+            </summary>
+        </member>
+        <member name="P:WatsonDedupe.IndexStatistics.RatioPercent">
+            <summary>
+            The deduplication ratio represented as a percentage, i.e. 50% deduplication means 10MB of logical data (objects) has been reduced to 5MB of physical data (chunks).
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.IndexStatistics.#ctor">
+            <summary>
+            Instantiate the object.
+            </summary>
+        </member>
+        <member name="M:WatsonDedupe.IndexStatistics.ToString">
+            <summary>
+            Human-readable version of the object.
+            </summary>
+            <returns></returns>
         </member>
     </members>
 </doc>

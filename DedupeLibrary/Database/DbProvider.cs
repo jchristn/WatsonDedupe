@@ -9,8 +9,10 @@ namespace WatsonDedupe.Database
     /// </summary>
     public abstract class DbProvider
     {
+        #region General-APIs
+
         /// <summary>
-        /// Method to determine if the database has been initialized, generally by checking for the existence of rows in the dedupe configuration table.
+        /// Method to indicate whether or not the database has been initialized.
         /// </summary>
         /// <returns>True if initialized.</returns>
         public abstract bool IsInitialized();
@@ -20,129 +22,132 @@ namespace WatsonDedupe.Database
         /// </summary>
         /// <param name="key">Key.</param>
         /// <param name="val">Value.</param>
-        public abstract void AddConfigData(string key, string val);
+        public abstract void AddConfigValue(string key, string val);
 
         /// <summary>
         /// Retrieve configuration-related data by key for deduplication operations.
         /// </summary>
-        /// <param name="key">Key.</param>
-        /// <param name="val">Value.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool GetConfigData(string key, out string val);
+        /// <param name="key">Key.</param> 
+        /// <returns>Value.</returns>
+        public abstract string GetConfigValue(string key);
 
         /// <summary>
-        /// Check if a chunk exists.
+        /// Retrieve statistics for the index.
+        /// </summary> 
+        /// <returns>Index statistics.</returns>
+        public abstract IndexStatistics GetStatistics();
+
+        #endregion
+
+        #region Enumeration-APIs
+
+        /// <summary>
+        /// List the objects stored in the index.
         /// </summary>
-        /// <param name="key">Key.</param>
-        /// <returns>True if exists.</returns>
-        public abstract bool ChunkExists(string key);
+        /// <param name="prefix">Prefix upon which to match object keys.</param>
+        /// <param name="indexStart">The index (DedupeObject.Id) from which to begin the enumeration.</param>
+        /// <param name="maxResults">Maximum number of results to retrieve.</param>
+        /// <return>Enumeration result.</return>
+        public abstract EnumerationResult ListObjects(string prefix, int indexStart, int maxResults);
+
+        #endregion
+
+        #region Exists-APIs
 
         /// <summary>
         /// Check if an object exists.
         /// </summary>
-        /// <param name="name">Object name.</param>
+        /// <param name="key">Object key.</param>
         /// <returns>True if exists.</returns>
-        public abstract bool ObjectExists(string name);
+        public abstract bool Exists(string key);
+         
+        #endregion
+
+        #region Get-APIs
 
         /// <summary>
-        /// List objects stored in the database.
+        /// Retrieve metadata for an object by its key.
+        /// DedupeObjectMap objects returned should be ordered in ascending order based on the chunk's position or address.
         /// </summary>
-        /// <param name="names">List of object names.</param>
-        public abstract void ListObjects(out List<string> names);
+        /// <param name="key">Object key.</param>
+        /// <returns>Object metadata.</returns>
+        public abstract DedupeObject GetObjectMetadata(string key);
 
         /// <summary>
-        /// Add a chunk for an object.
+        /// Retrieve metadata for a given chunk by its key.
         /// </summary>
-        /// <param name="name">Object name.</param>
-        /// <param name="totalLen">Total length of the object.</param>
-        /// <param name="chunk">Chunk.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool AddObjectChunk(string name, long totalLen, Chunk chunk);
-
-        /// <summary>
-        /// Add multiple chunks for an object.
-        /// </summary>
-        /// <param name="name">Object name.</param>
-        /// <param name="totalLen">Total length of the object.</param>
-        /// <param name="chunks">Chunks.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool AddObjectChunks(string name, long totalLen, List<Chunk> chunks);
-
-        /// <summary>
-        /// Retrieve metadata for an object.
-        /// </summary>
-        /// <param name="name">Object name.</param>
-        /// <param name="metadata">Object metadata.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool GetObjectMetadata(string name, out ObjectMetadata metadata);
+        /// <param name="chunkKey">Chunk key.</param>
+        /// <returns>Chunk metadata.</returns>
+        public abstract DedupeChunk GetChunkMetadata(string chunkKey);
 
         /// <summary>
         /// Retrieve chunks associated with an object.
         /// </summary>
-        /// <param name="name">Object name.</param>
-        /// <param name="chunks">Chunks.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool GetObjectChunks(string name, out List<Chunk> chunks);
+        /// <param name="key">Object key.</param>
+        /// <returns>Chunks.</returns>
+        public abstract List<DedupeChunk> GetChunks(string key);
+         
+        /// <summary>
+        /// Retrieve the object map containing the metadata for a given address within the original object.
+        /// </summary> 
+        /// <param name="key">Object key.</param>
+        /// <param name="position">Starting byte position.</param>
+        /// <returns>Dedupe object map.</returns>
+        public abstract DedupeObjectMap GetObjectMapForPosition(string key, long position);
 
         /// <summary>
-        /// Retrieve chunks containing data within a range of bytes from the original object.
+        /// Retrieve the object map for a given object by key.
         /// </summary>
-        /// <param name="name">Object name.</param>
-        /// <param name="start">Starting range.</param>
-        /// <param name="end">Ending range.</param>
-        /// <param name="chunks">Chunks.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool GetChunksForRange(string name, long start, long end, out List<Chunk> chunks);
+        /// <param name="key">Object key.</param>
+        /// <returns>Object map entries.</returns>
+        public abstract List<DedupeObjectMap> GetObjectMap(string key);
+
+        #endregion
+
+        #region Add-APIs
 
         /// <summary>
-        /// Retrieve the chunk containing data for a given address within the original object.
+        /// Add a new object to the index.
         /// </summary>
-        /// <param name="name">Object name.</param>
-        /// <param name="start">Starting range.</param>
-        /// <param name="chunk">Chunk.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool GetChunkForPosition(string name, long start, out Chunk chunk);
+        /// <param name="key">Object key.</param>
+        /// <param name="length">The total length of the object.</param>
+        public abstract void AddObject(string key, long length);
+         
+        /// <summary>
+        /// Add an object map to an existing object.
+        /// </summary>
+        /// <param name="key">Object key.</param>
+        /// <param name="chunkKey">Chunk key.</param>
+        /// <param name="chunkLength">Chunk length.</param>
+        /// <param name="chunkPosition">Ordinal position of the chunk, i.e. 1, 2, ..., n.</param>
+        /// <param name="chunkAddress">Byte address of the chunk within the original object.</param>
+        public abstract void AddObjectMap(string key, string chunkKey, int chunkLength, int chunkPosition, long chunkAddress);
+
+        /// <summary>
+        /// Increment reference count for a chunk by its key.  If the chunk does not exist, it is created.
+        /// </summary>
+        /// <param name="chunkKey">Chunk key.</param>
+        /// <param name="length">The chunk length, used when creating the chunk.</param>
+        public abstract void IncrementChunkRefcount(string chunkKey, int length);
+         
+        #endregion
+
+        #region Delete-APIs
 
         /// <summary>
         /// Delete an object and dereference the associated chunks.
         /// </summary>
-        /// <param name="name">The name of the object.</param>
-        /// <param name="garbageCollectChunks">List of chunk keys that should be garbage collected.</param>
-        public abstract void DeleteObjectChunks(string name, out List<string> garbageCollectChunks);
+        /// <param name="key">Object key.</param>
+        /// <returns>List of chunk keys that should be garbage collected.</returns>
+        public abstract List<string> Delete(string key);
 
         /// <summary>
-        /// Increment reference count for a chunk.
+        /// Decrement the reference count of a chunk by its key.  If the reference count reaches zero, the chunk is deleted.
         /// </summary>
-        /// <param name="key">Key.</param>
-        /// <param name="len">Length of the chunk.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool IncrementChunkRefcount(string key, long len);
+        /// <param name="chunkKey">The chunk GUID.</param>
+        /// <returns>Boolean indicating if the chunk should be garbage collected.</returns>
+        public abstract bool DecrementChunkRefcount(string chunkKey);
 
-        /// <summary>
-        /// Decrement reference count for a chunk.
-        /// </summary>
-        /// <param name="key">Key.</param>
-        /// <param name="garbageCollect">True if the chunk data can be garbage collected.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool DecrementChunkRefcount(string key, out bool garbageCollect);
-
-        /// <summary>
-        /// Retrieve statistics for the index.
-        /// </summary>
-        /// <param name="numObjects">The number of objects stored in the index.</param>
-        /// <param name="numChunks">The number of chunks stored in the index.</param>
-        /// <param name="logicalBytes">The amount of data stored in the index, i.e. the full size of the original data.</param>
-        /// <param name="physicalBytes">The number of bytes consumed by chunks of data, i.e. the deduplication set size.</param>
-        /// <param name="dedupeRatioX">Deduplication ratio represented as a multiplier.</param>
-        /// <param name="dedupeRatioPercent">Deduplication ratio represented as a percentage.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool IndexStats(out int numObjects, out int numChunks, out long logicalBytes, out long physicalBytes, out decimal dedupeRatioX, out decimal dedupeRatioPercent);
-
-        /// <summary>
-        /// Backup the deduplication database, not including chunk data, to another file.
-        /// </summary>
-        /// <param name="filename">The destination file.</param>
-        /// <returns>True if successful.</returns>
-        public abstract bool BackupDatabase(string filename);
+        #endregion 
     }
 }

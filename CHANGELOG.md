@@ -2,11 +2,20 @@
 
 ## Current Version
 
+v2.0.0
+
+- Major internal refactor and breaking changes
+- Consolidated settings, callbacks, and statistics into new objects
+- Paginated enumeration including prefix-based search
+- Refactored many APIs for simplification
+- Internal table structure extended
+- TryGet APIs
+
+## Previous Versions
+
 v1.5.0
 
 - DedupeStream class to read large, deduplicated objects using a stream
-
-## Previous Versions
 
 v1.4.1
 

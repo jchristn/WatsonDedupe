@@ -6,7 +6,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using DatabaseWrapper;
+using Watson.ORM.Core;
+using Watson.ORM.Sqlite;
 using WatsonDedupe;
 using WatsonDedupe.Database;
 
@@ -14,616 +15,525 @@ namespace Test.External
 {
     public class Database : DbProvider
     {
-        private bool _Debug;
-        private readonly object _ConfigLock = new object();
-        private readonly object _ChunkRefcountLock = new object();
-        private readonly object _ObjectLock = new object();
+        #region Public-Members
 
-        private DatabaseClient _Database = null;
+        #endregion
 
-        public Database(DatabaseClient database, bool debug)
+        #region Private-Members
+         
+        private WatsonORM _ORM = null;
+
+        #endregion
+
+        #region Constructors-and-Factories
+
+        /// <summary>
+        /// Instantiates the object
+        /// </summary>
+        /// <param name="indexFile">The index database file.</param>
+        public Database(WatsonORM orm)
         {
-            _Debug = debug;
-            _Database = database;
+            if (orm == null) throw new ArgumentNullException(nameof(orm));
+
+            _ORM = orm; 
+            _ORM.InitializeDatabase(); 
+            _ORM.InitializeTable(typeof(DedupeConfig));
+            _ORM.InitializeTable(typeof(DedupeObject));
+            _ORM.InitializeTable(typeof(DedupeChunk));
+            _ORM.InitializeTable(typeof(DedupeObjectMap));
         }
 
+        #endregion
+
+        #region Public-Methods
+
+        #region General-APIs
+
+        /// <summary>
+        /// Check if the database is initialized.  With internal Sqlite databases, this will always return true, because the constructor initializes the database.
+        /// </summary>
+        /// <returns>True.</returns>
         public override bool IsInitialized()
         {
-            string query = "SELECT * FROM dedupeconfig;";
-            DataTable result = _Database.Query(query);
-            if (result != null && result.Rows.Count > 1)
-            {
-                return true;
-            }
+            DbExpression e1 = new DbExpression(
+                _ORM.GetColumnName<DedupeConfig>(nameof(DedupeConfig.Key)),
+                DbOperators.Equals,
+                "min_chunk_size");
+
+            DbExpression e2 = new DbExpression(
+                _ORM.GetColumnName<DedupeConfig>(nameof(DedupeConfig.Key)),
+                DbOperators.Equals,
+                "max_chunk_size");
+
+            DbExpression e3 = new DbExpression(
+                _ORM.GetColumnName<DedupeConfig>(nameof(DedupeConfig.Key)),
+                DbOperators.Equals,
+                "shift_count");
+
+            DbExpression e4 = new DbExpression(
+                _ORM.GetColumnName<DedupeConfig>(nameof(DedupeConfig.Key)),
+                DbOperators.Equals,
+                "boundary_check_bytes");
+
+            DedupeConfig dc1 = _ORM.SelectFirst<DedupeConfig>(e1);
+            DedupeConfig dc2 = _ORM.SelectFirst<DedupeConfig>(e2);
+            DedupeConfig dc3 = _ORM.SelectFirst<DedupeConfig>(e3);
+            DedupeConfig dc4 = _ORM.SelectFirst<DedupeConfig>(e4);
+
+            if (dc1 != null && dc2 != null && dc3 != null && dc4 != null) return true;
             return false;
         }
 
-        public override void AddConfigData(string key, string val)
+        /// <summary>
+        /// Add a configuration key-value pair.
+        /// </summary>
+        /// <param name="key">The key.</param>
+        /// <param name="val">The value.</param>
+        public override void AddConfigValue(string key, string val)
         {
-            key = SanitizeString(key);
-            val = SanitizeString(val);
+            if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
+            if (String.IsNullOrEmpty(val)) throw new ArgumentNullException(nameof(val));
 
-            string keyCheckQuery = "SELECT * FROM DedupeConfig WHERE configkey = '" + key + "'";
-            DataTable result;
+            key = DedupeCommon.SanitizeString(key);
+            val = DedupeCommon.SanitizeString(val);
 
-            string keyDeleteQuery = "DELETE FROM DedupeConfig WHERE configkey = '" + key + "'";  
-            string keyInsertQuery = "INSERT INTO DedupeConfig (configkey, configval) VALUES ('" + key + "', '" + val + "')"; 
+            DbExpression e = new DbExpression(
+                _ORM.GetColumnName<DedupeConfig>(nameof(DedupeConfig.Key)),
+                DbOperators.Equals,
+                key);
 
-            lock (_ConfigLock)
-            {
-                result = _Database.Query(keyCheckQuery);
-                if (result != null && result.Rows.Count > 0) 
-                    _Database.Query(keyDeleteQuery); 
+            DedupeConfig config = _ORM.SelectFirst<DedupeConfig>(e);
+            if (config != null) _ORM.Delete<DedupeConfig>(config);
 
-                _Database.Query(keyInsertQuery);
-            }
-
-            return;
+            config = new DedupeConfig(key, val);
+            config = _ORM.Insert<DedupeConfig>(config);
         }
 
-        public override bool GetConfigData(string key, out string val)
+        /// <summary>
+        /// Retrieve a configuration value.
+        /// </summary>
+        /// <param name="key">The key.</param> 
+        /// <returns>Value.</returns>
+        public override string GetConfigValue(string key)
         {
-            val = null; 
+            if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
-            key = SanitizeString(key);
+            key = DedupeCommon.SanitizeString(key);
 
-            string keyQuery = "SELECT configval FROM DedupeConfig WHERE configkey = '" + key + "' LIMIT 1";
-            DataTable result;
+            DbExpression e = new DbExpression(
+                _ORM.GetColumnName<DedupeConfig>(nameof(DedupeConfig.Key)),
+                DbOperators.Equals,
+                key);
 
-            lock (_ConfigLock)
+            DedupeConfig config = _ORM.SelectFirst<DedupeConfig>(e);
+            if (config == null) return null;
+            return config.Value;
+        }
+
+        /// <summary>
+        /// Retrieve index statistics.
+        /// </summary> 
+        /// <returns>Index statistics.</returns>
+        public override IndexStatistics GetStatistics()
+        {
+            IndexStatistics ret = new IndexStatistics();
+
+            DbExpression eObjects = new DbExpression(
+                _ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Id)),
+                DbOperators.GreaterThan,
+                0);
+
+            ret.Objects = _ORM.Count<DedupeObject>(eObjects);
+
+            DbExpression eChunks = new DbExpression(
+                _ORM.GetColumnName<DedupeChunk>(nameof(DedupeChunk.Id)),
+                DbOperators.GreaterThan,
+                0);
+
+            ret.Chunks = _ORM.Count<DedupeChunk>(eChunks);
+
+            DbExpression eLogicalBytes = new DbExpression(
+                _ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Id)),
+                DbOperators.GreaterThan,
+                0);
+
+            decimal logicalBytes = _ORM.Sum<DedupeObject>(_ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Length)), eLogicalBytes);
+            ret.LogicalBytes = Convert.ToInt64(logicalBytes);
+
+            DbExpression ePhysicalBytes = new DbExpression(
+                _ORM.GetColumnName<DedupeChunk>(nameof(DedupeChunk.Id)),
+                DbOperators.GreaterThan,
+                0);
+
+            decimal physicalBytes = _ORM.Sum<DedupeChunk>(_ORM.GetColumnName<DedupeChunk>(nameof(DedupeChunk.Length)), ePhysicalBytes);
+            ret.PhysicalBytes = Convert.ToInt64(physicalBytes);
+
+            return ret;
+        }
+
+        #endregion
+
+        #region Enumeration-APIs
+
+        /// <summary>
+        /// List the objects stored in the index.
+        /// </summary>
+        /// <param name="prefix">Prefix upon which to match object keys.</param>
+        /// <param name="indexStart">The index (DedupeObject.Id) from which to begin the enumeration.</param>
+        /// <param name="maxResults">Maximum number of results to retrieve.</param>
+        /// <return>Enumeration result.</return>
+        public override EnumerationResult ListObjects(string prefix, int indexStart, int maxResults)
+        {
+            if (indexStart < 0) throw new ArgumentException("Starting index must be zero or greater.");
+            if (maxResults < 1 || maxResults > 100) throw new ArgumentException("Max results must be greater than zero and less than or equal to 100.");
+
+            EnumerationResult ret = new EnumerationResult(prefix, indexStart, indexStart, maxResults, new List<DedupeObject>());
+             
+            DbExpression e = new DbExpression(
+                _ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Id)),
+                DbOperators.GreaterThan,
+                indexStart);
+
+            if (!String.IsNullOrEmpty(prefix))
             {
-                result = _Database.Query(keyQuery);
-                if (result != null && result.Rows.Count > 0)
+                e.PrependAnd(
+                    _ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Key)),
+                    DbOperators.StartsWith,
+                    prefix);
+            }
+
+            List<DedupeObject> objects = _ORM.SelectMany<DedupeObject>(null, maxResults, e);
+
+            if (objects != null && objects.Count > 0)
+            {
+                foreach (DedupeObject obj in objects)
                 {
-                    foreach (DataRow curr in result.Rows)
+                    obj.Chunks = GetChunks(obj.Key);
+                    obj.ObjectMap = GetObjectMap(obj.Key);
+
+                    if (obj.ObjectMap != null && obj.ObjectMap.Count > 0)
                     {
-                        val = curr["configval"].ToString();
-                        if (_Debug) Console.WriteLine("Returning " + key + ": " + val);
-                        return true;
+                        obj.ObjectMap = obj.ObjectMap.OrderBy(o => o.ChunkAddress).ToList();
                     }
+
+                    ret.Objects.Add(obj);
                 }
             }
 
-            return false;
-        }
-
-        public override bool ChunkExists(string key)
-        { 
-            key = SanitizeString(key);
-
-            string query = "SELECT * FROM ObjectMap WHERE ChunkKey = '" + key + "' LIMIT 1";
-            DataTable result;
-
-            lock (_ObjectLock)
+            if (objects != null && objects.Count == maxResults)
             {
-                result = _Database.Query(query);
-                if (result != null && result.Rows.Count > 0) return true;
+                ret.NextIndexStart = objects[(objects.Count - 1)].Id;
             }
 
-            return false;
+            return ret;
         }
 
-        public override bool ObjectExists(string name)
-        { 
-            name = SanitizeString(name);
+        #endregion
 
-            string query = "SELECT * FROM ObjectMap WHERE Name = '" + name + "' LIMIT 1";
-            DataTable result;
+        #region Exists-APIs
 
-            lock (_ObjectLock)
-            {
-                result = _Database.Query(query);
-                if (result != null && result.Rows.Count > 0) return true;
-            }
-
-            return false;
-        }
-
-        public override void ListObjects(out List<string> names)
+        /// <summary>
+        /// Determine if an object exists in the index.
+        /// </summary>
+        /// <param name="key">Object key.</param>
+        /// <returns>True if the object exists.</returns>
+        public override bool Exists(string key)
         {
-            names = new List<string>();
+            if (String.IsNullOrEmpty(key)) return false;
 
-            string query = "SELECT DISTINCT Name FROM ObjectMap";
-            DataTable result;
+            key = DedupeCommon.SanitizeString(key);
 
-            lock (_ObjectLock)
-            {
-                result = _Database.Query(query);
-                if (result != null && result.Rows.Count > 0)
-                {
-                    foreach (DataRow curr in result.Rows)
-                    {
-                        names.Add(curr["Name"].ToString());
-                    }
-                }
-            }
-        }
+            DbExpression e = new DbExpression(
+                _ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Key)),
+                DbOperators.Equals,
+                key);
 
-        public override bool AddObjectChunk(string name, long totalLen, Chunk chunk)
-        {
-            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-            if (totalLen < 1) throw new ArgumentException("Total length must be greater than zero.");
-            if (chunk == null) throw new ArgumentNullException(nameof(chunk));
-
-            name = SanitizeString(name);
-
-            DataTable result = null;
-            string query = AddObjectChunkQuery(name, totalLen, chunk);
-
-            lock (_ObjectLock)
-            {
-                result = _Database.Query(query);
-                return IncrementChunkRefcount(chunk.Key, chunk.Length);
-            } 
+            return _ORM.Exists<DedupeObject>(e);
         }
          
-        public override bool AddObjectChunks(string name, long totalLen, List<Chunk> chunks)
+        #endregion
+
+        #region Get-APIs
+
+        /// <summary>
+        /// Retrieve metadata for a given object.
+        /// DedupeObjectMap objects returned should be ordered in ascending order based on the chunk's position or address.
+        /// </summary>
+        /// <param name="key">Object key.</param>
+        /// <returns>Object metadata.</returns>
+        public override DedupeObject GetObjectMetadata(string key)
         {
-            name = SanitizeString(name);
+            if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
-            if (ObjectExists(name)) return false;
+            key = DedupeCommon.SanitizeString(key);
 
-            DataTable result;
-            List<string> addObjectChunksQueries = BatchAddObjectChunksQuery(name, totalLen, chunks);
+            DbExpression e = new DbExpression(
+                _ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Key)),
+                DbOperators.Equals,
+                key);
 
-            lock (_ObjectLock)
+            DedupeObject ret = _ORM.SelectFirst<DedupeObject>(e);
+
+            if (ret != null)
             {
-                foreach (string query in addObjectChunksQueries)
-                {
-                    result = _Database.Query(query);
-                }
+                ret.Chunks = GetChunks(key);
+                ret.ObjectMap = GetObjectMap(key);
 
-                foreach (Chunk currChunk in chunks)
-                {
-                    IncrementChunkRefcount(currChunk.Key, currChunk.Length);
-                }
+                if (ret.ObjectMap != null && ret.ObjectMap.Count > 0)
+                    ret.ObjectMap = ret.ObjectMap.OrderBy(o => o.ChunkAddress).ToList();
             }
 
-            return true;
+            return ret;
         }
 
-        public override bool GetObjectMetadata(string name, out ObjectMetadata metadata)
-        { 
-            name = SanitizeString(name);
-            metadata = null;
-
-            string query = "SELECT * FROM ObjectMap WHERE Name = '" + name + "'";
-            DataTable result; 
-            lock (_ObjectLock)
-            {
-                result = _Database.Query(query);
-            }
-
-            if (result == null || result.Rows.Count < 1) return false; 
-
-            metadata = ObjectMetadata.FromDataTable(result);
-            return true;
-        }
-
-        public override bool GetObjectChunks(string name, out List<Chunk> chunks)
-        { 
-            name = SanitizeString(name);
-            chunks = new List<Chunk>();
-
-            string query = "SELECT * FROM ObjectMap WHERE Name = '" + name + "'";
-            DataTable result; 
-            lock (_ObjectLock)
-            {
-                result = _Database.Query(query);
-            }
-
-            if (result == null || result.Rows.Count < 1) return false; 
-
-            foreach (DataRow row in result.Rows)
-            {
-                chunks.Add(Chunk.FromDataRow(row));
-            }
-
-            return true;
-        }
-
-        public override bool GetChunksForRange(string name, long start, long end, out List<Chunk> chunks)
+        /// <summary>
+        /// Retrieve metadata for a given chunk by its key.
+        /// </summary>
+        /// <param name="chunkKey">Chunk key.</param>
+        /// <returns>Chunk metadata.</returns>
+        public override DedupeChunk GetChunkMetadata(string chunkKey)
         {
-            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-            if (start < 0) throw new ArgumentOutOfRangeException("Start of range must be zero or greater.");
-            if (end < 0) throw new ArgumentOutOfRangeException("End of range must be zero or greater.");
-            if (end < start) throw new ArgumentOutOfRangeException("End of range must be greater than or equal to start of range.");
+            if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
 
-            name = SanitizeString(name);
-            chunks = new List<Chunk>();
+            chunkKey = DedupeCommon.SanitizeString(chunkKey);
+
+            DbExpression e = new DbExpression(
+                _ORM.GetColumnName<DedupeChunk>(nameof(DedupeChunk.Key)),
+                DbOperators.Equals,
+                chunkKey);
+
+            DedupeChunk ret = _ORM.SelectFirst<DedupeChunk>(e);
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Retrieve chunk metadata for a given object.
+        /// </summary>
+        /// <param name="key">Object key.</param>
+        /// <returns>Chunks associated with the object.</returns>
+        public override List<DedupeChunk> GetChunks(string key)
+        {
+            if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
+
+            List<DedupeChunk> ret = new List<DedupeChunk>();
+
+            key = DedupeCommon.SanitizeString(key);
+            List<DedupeObjectMap> maps = GetObjectMap(key);
+            if (maps == null || maps.Count < 1) return ret;
+
+            List<string> chunkKeys = maps.Select(m => m.ChunkKey).ToList();
+            if (chunkKeys == null || chunkKeys.Count < 1) return ret;
+
+            chunkKeys = chunkKeys.Distinct().ToList();
+
+            DbExpression e = new DbExpression(
+                _ORM.GetColumnName<DedupeChunk>(nameof(DedupeChunk.Key)),
+                DbOperators.In,
+                chunkKeys);
+
+            ret = _ORM.SelectMany<DedupeChunk>(e);
+            return ret;
+        }
+
+        /// <summary>
+        /// Retrieve the object map containing the metadata for a given address within the original object.
+        /// </summary> 
+        /// <param name="key">Object key.</param>
+        /// <param name="position">Starting byte position.</param>
+        /// <returns>Dedupe object map.</returns>
+        public override DedupeObjectMap GetObjectMapForPosition(string key, long position)
+        {
+            if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
+            if (position < 0) throw new ArgumentOutOfRangeException("Start of range must be zero or greater.");
+
+            key = DedupeCommon.SanitizeString(key);
+
+            DedupeObject obj = GetObjectMetadata(key);
+            if (obj == null) return null;
+
+            string objMapTable = _ORM.GetTableName(typeof(DedupeObjectMap));
+            string objKeyCol = _ORM.GetColumnName<DedupeObjectMap>(nameof(DedupeObjectMap.ObjectKey));
+            string chunkAddrCol = _ORM.GetColumnName<DedupeObjectMap>(nameof(DedupeObjectMap.ChunkAddress));
+            string chunkLenCol = _ORM.GetColumnName<DedupeObjectMap>(nameof(DedupeObjectMap.ChunkLength));
 
             string query =
-                "SELECT * FROM ObjectMap " +
-                "WHERE Name = '" + name + "' AND " +
-                "(" +
-                "     (chunkAddress <= " + start + " AND chunkAddress + chunkLength > " + start + ") " +
-                "  OR (chunkAddress <= " + end + " AND chunkAddress + chunkLength > " + end + ") " +
-                "  OR (chunkAddress >= " + start + " AND chunkAddress <= " + end + ") " +
-                ")";
-
-            DataTable result; 
-            lock (_ObjectLock)
-            {
-                result = _Database.Query(query);
-            }
-
-            if (result == null || result.Rows.Count < 1) return false; 
-
-            foreach (DataRow row in result.Rows)
-            {
-                chunks.Add(Chunk.FromDataRow(row));
-            }
-
-            chunks = chunks.OrderBy(c => c.Address).ToList();
-            return true;
-        }
-
-        public override bool GetChunkForPosition(string name, long start, out Chunk chunk)
-        {
-            if (String.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
-            if (start < 0) throw new ArgumentOutOfRangeException("Start of range must be zero or greater.");
-
-            chunk = null;
-            name = SanitizeString(name);
-
-            string query =
-                "SELECT * FROM ObjectMap " +
+                "SELECT * FROM " + objMapTable + " " +
                 "WHERE " +
-                "  Name = '" + name + "' " +
-                "  AND chunkAddress <= " + start + " AND chunkAddress + chunkLength > " + start + " ";
+                "  " + objKeyCol + " = '" + obj.Key + "' " +
+                "  AND " + chunkAddrCol + " <= " + position + " AND " + chunkAddrCol + " + " + chunkLenCol + " > " + position + " ";
 
-            DataTable result; 
-            lock (_ObjectLock)
+            DedupeObjectMap map = null;
+            DataTable result = _ORM.Query(query);
+
+            if (result != null && result.Rows.Count > 0)
             {
-                result = _Database.Query(query);
+                map = _ORM.DataRowToObject<DedupeObjectMap>(result.Rows[0]);
             }
 
-            if (result == null || result.Rows.Count < 1) return false;  
-
-            chunk = Chunk.FromDataRow(result.Rows[0]);
-            return true;
+            return map;
         }
 
-        public override void DeleteObjectChunks(string name, out List<string> garbageCollectChunks)
+        /// <summary>
+        /// Retrieve the object map for a given object by key.
+        /// </summary>
+        /// <param name="key">Object key.</param>
+        /// <returns>Object map entries.</returns>
+        public override List<DedupeObjectMap> GetObjectMap(string key)
         {
-            garbageCollectChunks = new List<string>(); 
+            if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
-            name = SanitizeString(name);
+            List<DedupeObjectMap> ret = new List<DedupeObjectMap>();
 
-            string selectQuery = "SELECT * FROM ObjectMap WHERE Name = '" + name + "'";
-            string deleteObjectMapQuery = "DELETE FROM ObjectMap WHERE Name = '" + name + "'";
-            DataTable result;
-            bool garbageCollect = false;
+            DbExpression e = new DbExpression(
+                _ORM.GetColumnName<DedupeObjectMap>(nameof(DedupeObjectMap.ObjectKey)),
+                DbOperators.Equals,
+                key);
 
-            lock (_ObjectLock)
-            {
-                result = _Database.Query(selectQuery); 
-                if (result == null || result.Rows.Count < 1) return;
+            ret = _ORM.SelectMany<DedupeObjectMap>(e);
 
-                foreach (DataRow curr in result.Rows)
-                {
-                    Chunk c = Chunk.FromDataRow(curr);
-                    DecrementChunkRefcount(c.Key, out garbageCollect);
-                    if (garbageCollect) garbageCollectChunks.Add(c.Key);
-                }
-
-                result = _Database.Query(deleteObjectMapQuery);
-            }
+            return ret;
         }
 
-        public override bool IncrementChunkRefcount(string key, long len)
-        { 
-            key = SanitizeString(key);
+        #endregion
 
-            string selectQuery = "";
-            string updateQuery = "";
-            string insertQuery = "";
+        #region Add-APIs
 
-            DataTable selectResult;
-            DataTable updateResult;
-            DataTable insertResult;
-
-            selectQuery = "SELECT * FROM ChunkRefcount WHERE ChunkKey = '" + key + "'";
-            insertQuery = "INSERT INTO ChunkRefcount (ChunkKey, ChunkLength, RefCount) VALUES ('" + key + "', '" + len + "', 1)";
-
-            lock (_ChunkRefcountLock)
-            {
-                selectResult = _Database.Query(selectQuery); 
-                if (selectResult == null || selectResult.Rows.Count < 1)
-                {
-                    insertResult = _Database.Query(insertQuery);
-                    return true;
-                }
-                else
-                {
-                    // update 
-                    int currCount = 0;
-                    foreach (DataRow curr in selectResult.Rows)
-                    {
-                        currCount = Convert.ToInt32(curr["RefCount"]);
-                    }
-
-                    currCount++;
-
-                    updateQuery = "UPDATE ChunkRefcount SET RefCount = '" + currCount + "' WHERE ChunkKey = '" + key + "'";
-                    updateResult = _Database.Query(updateQuery);
-                    return true;
-                }  
-            }
-        }
-
-        public override bool DecrementChunkRefcount(string key, out bool garbageCollect)
+        /// <summary>
+        /// Add a new object to the index.
+        /// </summary>
+        /// <param name="key">Object key.</param>
+        /// <param name="length">The total length of the object.</param> 
+        public override void AddObject(string key, long length)
         {
-            garbageCollect = false; 
+            if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
+            if (length < 1) throw new ArgumentException("Length must be greater than zero."); 
 
-            key = SanitizeString(key);
+            key = DedupeCommon.SanitizeString(key);
+            if (Exists(key)) throw new ArgumentException("An object with key '" + key + "' already exists.");
 
-            string selectQuery = "";
-            string updateQuery = "";
-            string deleteQuery = "";
+            DedupeObject obj = _ORM.Insert<DedupeObject>(new DedupeObject(key, length)); 
+        }
 
-            DataTable selectResult;
-            DataTable updateResult;
-            DataTable deleteResult;
+        /// <summary>
+        /// Add an object map to an existing object.
+        /// </summary>
+        /// <param name="key">Object key.</param>
+        /// <param name="chunkKey">Chunk key.</param>
+        /// <param name="chunkLength">Chunk length.</param>
+        /// <param name="chunkPosition">Ordinal position of the chunk, i.e. 1, 2, ..., n.</param>
+        /// <param name="chunkAddress">Byte address of the chunk within the original object.</param>
+        public override void AddObjectMap(string key, string chunkKey, int chunkLength, int chunkPosition, long chunkAddress)
+        {
+            if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
+            if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
+            if (chunkLength < 1) throw new ArgumentException("Chunk length must be greater than zero.");
+            if (chunkPosition < 0) throw new ArgumentException("Position must be zero or greater.");
+            if (chunkAddress < 0) throw new ArgumentException("Address must be zero or greater.");
 
-            selectQuery = "SELECT * FROM ChunkRefcount WHERE ChunkKey = '" + key + "'";
-            deleteQuery = "DELETE FROM ChunkRefcount WHERE ChunkKey = '" + key + "'";
+            DedupeObjectMap map = new DedupeObjectMap(key, chunkKey, chunkLength, chunkPosition, chunkAddress);
+            _ORM.Insert<DedupeObjectMap>(map);
+        }
 
-            lock (_ChunkRefcountLock)
+        /// <summary>
+        /// Increment reference count for a chunk by its key.  If the chunk does not exist, it is created.
+        /// </summary>
+        /// <param name="chunkKey">Chunk key.</param>
+        /// <param name="length">The chunk length, used when creating the chunk.</param>
+        public override void IncrementChunkRefcount(string chunkKey, int length)
+        {
+            if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
+
+            chunkKey = DedupeCommon.SanitizeString(chunkKey);
+
+            DedupeChunk chunk = GetChunkMetadata(chunkKey);
+            if (chunk != null)
             {
-                selectResult = _Database.Query(selectQuery);
-                if (selectResult == null || selectResult.Rows.Count < 1)
-                {
-                    return false;
-                }
-                else
-                {
-                    int currCount = 0;
-                    foreach (DataRow curr in selectResult.Rows)
-                    {
-                        currCount = Convert.ToInt32(curr["RefCount"]);
-                    }
-
-                    currCount--;
-                    if (currCount == 0)
-                    {
-                        garbageCollect = true;
-                        deleteResult = _Database.Query(deleteQuery);
-                        return true;
-                    }
-                    else
-                    {
-                        updateQuery = "UPDATE ChunkRefcount SET RefCount = '" + currCount + "' WHERE ChunkKey = '" + key + "'";
-                        updateResult = _Database.Query(updateQuery);
-                        return true;
-                    }
-                }
+                chunk.RefCount = chunk.RefCount + 1;
+                _ORM.Update<DedupeChunk>(chunk);
+            }
+            else
+            {
+                chunk = new DedupeChunk(chunkKey, length, 1);
+                _ORM.Insert<DedupeChunk>(chunk);
             }
         }
 
-        public override bool IndexStats(out int numObjects, out int numChunks, out long logicalBytes, out long physicalBytes, out decimal dedupeRatioX, out decimal dedupeRatioPercent)
+        #endregion
+
+        #region Delete-APIs
+
+        /// <summary>
+        /// Delete an object and dereference the associated chunks.
+        /// </summary>
+        /// <param name="key">Object key.</param>
+        /// <returns>List of chunk keys that should be garbage collected.</returns>
+        public override List<string> Delete(string key)
         {
-            numObjects = 0;
-            numChunks = 0;
-            logicalBytes = 0;
-            physicalBytes = 0;
-            dedupeRatioX = 0m;
-            dedupeRatioPercent = 0m;
-
-            string query =
-                "SELECT * FROM " +
-                "(" +
-                "  (SELECT COUNT(*) AS NumObjects FROM " +
-                "    (SELECT DISTINCT(Name) FROM ObjectMap) Names " +
-                "  ) NumObjects, " +
-                "  (SELECT COUNT(*) AS NumChunks FROM ChunkRefcount) NumChunks, " +
-                "  (SELECT SUM(ChunkLength * RefCount) AS LogicalBytes FROM ChunkRefcount) LogicalBytes, " +
-                "  (SELECT SUM(ChunkLength) AS PhysicalBytes FROM ChunkRefcount) PhysicalBytes " +
-                ")";
-
-            DataTable result;
-
-            lock (_ChunkRefcountLock)
-            {
-                result = _Database.Query(query);
-                if (result == null || result.Rows.Count < 1) return true;
-            }
-
-            foreach (DataRow curr in result.Rows)
-            {
-                if (curr["NumObjects"] != DBNull.Value) numObjects = Convert.ToInt32(curr["NumObjects"]);
-                if (curr["NumChunks"] != DBNull.Value) numChunks = Convert.ToInt32(curr["NumChunks"]);
-                if (curr["LogicalBytes"] != DBNull.Value) logicalBytes = Convert.ToInt32(curr["LogicalBytes"]);
-                if (curr["PhysicalBytes"] != DBNull.Value) physicalBytes = Convert.ToInt32(curr["PhysicalBytes"]);
-
-                if (physicalBytes > 0 && logicalBytes > 0)
-                {
-                    dedupeRatioX = (decimal)logicalBytes / (decimal)physicalBytes;
-                    dedupeRatioPercent = 100 * (1 - ((decimal)physicalBytes / (decimal)logicalBytes));
-                }
-            }
-
-            return true;
-        }
-
-        public override bool BackupDatabase(string filename)
-        {
-            throw new NotImplementedException(); 
-        }
-         
-        private string AddObjectChunkQuery(string objectName, long totalLen, Chunk chunk)
-        {
-            string query =
-                "INSERT INTO ObjectMap " +
-                "(" +
-                "  Name, " +
-                "  ContentLength, " +
-                "  ChunkKey, " +
-                "  ChunkLength, " +
-                "  ChunkPosition, " +
-                "  ChunkAddress) " +
-                "VALUES " +
-                "(" +
-                "  '" + SanitizeString(objectName) + "', " +
-                "  '" + totalLen + "', " +
-                "  '" + SanitizeString(chunk.Key) + "', " +
-                "  '" + chunk.Length + "', " +
-                "  '" + chunk.Position + "', " +
-                "  '" + chunk.Address + "'" +
-                ")";
-
-            return query;
-        }
-
-        private List<string> BatchAddObjectChunksQuery(string objectName, long totalLen, List<Chunk> chunks)
-        {
-            if (String.IsNullOrEmpty(objectName)) throw new ArgumentNullException(nameof(objectName));
-
+            if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
             List<string> ret = new List<string>();
 
-            bool moreRecords = true;
-            int batchMaxSize = 32;
-            int totalRecords = chunks.Count;
-            int currPosition = 0;
-            int remainingRecords = 0;
+            key = DedupeCommon.SanitizeString(key);
 
-            while (moreRecords)
+            DedupeObject obj = GetObjectMetadata(key);
+            if (obj == null) throw new KeyNotFoundException("Key '" + key + "' not found.");
+
+            List<DedupeObjectMap> maps = GetObjectMap(key);
+            if (maps != null && maps.Count > 0)
             {
-                string query = "INSERT INTO ObjectMap (Name, ContentLength, ChunkKey, ChunkLength, ChunkPosition, ChunkAddress) VALUES ";
-
-                remainingRecords = totalRecords - currPosition;
-                if (remainingRecords > batchMaxSize)
+                foreach (DedupeObjectMap map in maps)
                 {
-                    #region Max-Size-Records
-
-                    for (int i = 0; i < batchMaxSize; i++)
+                    if (DecrementChunkRefcount(map.ChunkKey))
                     {
-                        if (i > 0) query += ", ";
-                        query +=
-                            "(" +
-                            "'" + objectName + "', " +
-                            "'" + totalLen + "', " +
-                            "'" + SanitizeString(chunks[i + currPosition].Key) + "', " +
-                            "'" + chunks[i + currPosition].Length + "', " +
-                            "'" + chunks[i + currPosition].Position + "', " +
-                            "'" + chunks[i + currPosition].Address + "'" +
-                            ")";
+                        ret.Add(map.ChunkKey);
                     }
-
-                    currPosition += batchMaxSize;
-                    ret.Add(query);
-
-                    #endregion
-                }
-                else if (remainingRecords > 0)
-                {
-                    #region N-Records
-
-                    for (int i = 0; i < remainingRecords; i++)
-                    {
-                        if (i > 0) query += ", ";
-                        query +=
-                            "(" +
-                            "'" + objectName + "', " +
-                            "'" + totalLen + "', " +
-                            "'" + SanitizeString(chunks[i + currPosition].Key) + "', " +
-                            "'" + chunks[i + currPosition].Length + "', " +
-                            "'" + chunks[i + currPosition].Position + "', " +
-                            "'" + chunks[i + currPosition].Address + "'" +
-                            ")";
-                    }
-
-                    currPosition += remainingRecords;
-                    ret.Add(query);
-
-                    #endregion
-                }
-                else
-                {
-                    moreRecords = false;
                 }
             }
 
+            DbExpression e = new DbExpression(
+                _ORM.GetColumnName<DedupeObjectMap>(nameof(DedupeObjectMap.ObjectKey)),
+                DbOperators.Equals,
+                key);
+
+            _ORM.DeleteMany<DedupeObjectMap>(e);
+
+            // chunks to GC
             return ret;
         }
-         
-        private static string SanitizeString(string s)
+
+        /// <summary>
+        /// Decrement the reference count of a chunk by its key.  If the reference count reaches zero, the chunk is deleted.
+        /// </summary>
+        /// <param name="chunkKey">Chunk key.</param>
+        /// <returns>Boolean indicating if the chunk should be garbage collected.</returns>
+        public override bool DecrementChunkRefcount(string chunkKey)
         {
-            if (String.IsNullOrEmpty(s)) return String.Empty;
+            if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
 
-            string ret = "";
-            int doubleDash = 0;
-            int openComment = 0;
-            int closeComment = 0;
+            chunkKey = DedupeCommon.SanitizeString(chunkKey);
 
-            for (int i = 0; i < s.Length; i++)
+            DedupeChunk chunk = GetChunkMetadata(chunkKey);
+            if (chunk == null) return false;
+
+            chunk.RefCount = chunk.RefCount - 1;
+            if (chunk.RefCount < 1)
             {
-                if (((int)(s[i]) == 10) ||      // Preserve carriage return
-                    ((int)(s[i]) == 13))        // and line feed
-                {
-                    ret += s[i];
-                }
-                else if ((int)(s[i]) < 32)
-                {
-                    continue;
-                }
-                else
-                {
-                    ret += s[i];
-                }
+                _ORM.Delete<DedupeChunk>(chunk);
+                return true;
             }
-
-            //
-            // double dash
-            //
-            doubleDash = 0;
-            while (true)
+            else
             {
-                doubleDash = ret.IndexOf("--");
-                if (doubleDash < 0)
-                {
-                    break;
-                }
-                else
-                {
-                    ret = ret.Remove(doubleDash, 2);
-                }
+                _ORM.Update<DedupeChunk>(chunk);
+                return false;
             }
-
-            //
-            // open comment
-            // 
-            openComment = 0;
-            while (true)
-            {
-                openComment = ret.IndexOf("/*");
-                if (openComment < 0) break;
-                else
-                {
-                    ret = ret.Remove(openComment, 2);
-                }
-            }
-
-            //
-            // close comment
-            //
-            closeComment = 0;
-            while (true)
-            {
-                closeComment = ret.IndexOf("*/");
-                if (closeComment < 0) break;
-                else
-                {
-                    ret = ret.Remove(closeComment, 2);
-                }
-            }
-
-            //
-            // in-string replacement
-            //
-            ret = ret.Replace("'", "''");
-
-            return ret;
         }
+
+        #endregion
+
+        #endregion
+
+        #region Private-Methods
+
+        #endregion
     }
 }
