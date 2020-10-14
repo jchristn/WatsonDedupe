@@ -49,7 +49,7 @@ To use WatsonDedupe, instantiate the ```DedupeSettings``` class and the ```Dedup
 
 The example below is from the ```SampleApp``` project and shows how to use WatsonDedupe with a managed internal Sqlite database.
  
-```
+```csharp
 using System;
 using System.IO;
 using WatsonDedupe;
