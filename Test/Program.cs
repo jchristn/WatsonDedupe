@@ -42,8 +42,7 @@ namespace Test
                         Console.WriteLine("  get        retrieve an object");
                         Console.WriteLine("  del        delete an object");
                         Console.WriteLine("  md         retrieve object metadata");
-                        Console.WriteLine("  list       list 100 objects in the index");
-                        Console.WriteLine("  listp      paginated list objects");
+                        Console.WriteLine("  list       paginated list of objects in the index");
                         Console.WriteLine("  exists     check if object exists in the index");
                         Console.WriteLine("  stats      list index stats");
                         Console.WriteLine("");
