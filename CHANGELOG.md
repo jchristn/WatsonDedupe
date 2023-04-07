@@ -2,7 +2,7 @@
 
 ## Current Version
 
-v2.0.0
+v2.0.x
 
 - Major internal refactor and breaking changes
 - Consolidated settings, callbacks, and statistics into new objects
@@ -10,6 +10,7 @@ v2.0.0
 - Refactored many APIs for simplification
 - Internal table structure extended
 - TryGet APIs
+- Additional properties on ```DedupeObject``` including compressed length and number of chunks
 
 ## Previous Versions
 

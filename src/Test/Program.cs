@@ -4,18 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Watson.ORM.Core;
-using Watson.ORM.Sqlite; 
 using WatsonDedupe;
-using WatsonDedupe.Database;
 
-namespace Test.External
+namespace Test
 {
     class Program
     {
-        static DbProvider _DbProvider;
-        static DatabaseSettings _DbSettings;
-        static WatsonORM _ORM;
         static DedupeSettings _Settings;
         static DedupeCallbacks _Callbacks;
         static DedupeLibrary _Dedupe;
@@ -24,10 +18,10 @@ namespace Test.External
          
         static void Main(string[] args)
         {
-            bool runForever = true;
+            bool runForever = true; 
             string filename = "";
-            string key = "";
-            long contentLength = 0; 
+            string key = ""; 
+            List<Chunk> chunks = new List<Chunk>();  
             DedupeObject obj = null; 
              
             Initialize();
@@ -48,8 +42,7 @@ namespace Test.External
                         Console.WriteLine("  get        retrieve an object");
                         Console.WriteLine("  del        delete an object");
                         Console.WriteLine("  md         retrieve object metadata");
-                        Console.WriteLine("  list       list 100 objects in the index");
-                        Console.WriteLine("  listp      paginated list objects");
+                        Console.WriteLine("  list       paginated list of objects in the index");
                         Console.WriteLine("  exists     check if object exists in the index");
                         Console.WriteLine("  stats      list index stats");
                         Console.WriteLine("");
@@ -67,7 +60,7 @@ namespace Test.External
                     case "write":
                         filename = InputString("Input filename:", null, false);
                         key = InputString("Object key:", null, false);
-                        contentLength = GetContentLength(filename);
+                        long contentLength = GetContentLength(filename);
                         using (FileStream fs = new FileStream(filename, FileMode.Open))
                         {
                             _Dedupe.Write(key, contentLength, fs);
@@ -80,12 +73,12 @@ namespace Test.External
                         obj = _Dedupe.Get(key);
                         if (obj != null)
                         {
-                            if (obj.Length > 0)
+                            if (obj.OriginalLength > 0)
                             {
                                 using (FileStream fs = new FileStream(filename, FileMode.OpenOrCreate))
                                 {
                                     int bytesRead = 0;
-                                    long bytesRemaining = obj.Length;
+                                    long bytesRemaining = obj.OriginalLength;
                                     byte[] readBuffer = new byte[65536];
 
                                     while (bytesRemaining > 0)
@@ -97,7 +90,7 @@ namespace Test.External
                                             bytesRemaining -= bytesRead;
                                         }
                                     }
-                                }
+                                } 
 
                                 Console.WriteLine("Success");
                             }
@@ -175,7 +168,7 @@ namespace Test.External
 
                     default:
                         break;
-                }
+                } 
             }
         }
 
@@ -185,10 +178,7 @@ namespace Test.External
 
             _Settings = new DedupeSettings(32768, 262144, 2048, 2);
             _Callbacks = new DedupeCallbacks(WriteChunk, ReadChunk, DeleteChunk);
-            _DbSettings = new DatabaseSettings(DbTypes.Mysql, "127.0.0.1", 3306, "root", "password", "dedupe");
-            _ORM = new WatsonORM(_DbSettings);
-            _DbProvider = new Database(_ORM);
-            _Dedupe = new DedupeLibrary(_DbProvider, _Settings, _Callbacks); 
+            _Dedupe = new DedupeLibrary("test.db", _Settings, _Callbacks); 
         }
 
         static void WriteChunk(DedupeChunk data)
@@ -203,7 +193,7 @@ namespace Test.External
                 FileOptions.WriteThrough))
             {
                 fs.Write(data.Data, 0, data.Data.Length);
-            } 
+            }
         }
 
         static byte[] ReadChunk(string key)

@@ -110,8 +110,10 @@ namespace WatsonDedupe.Database
         /// Add a new object to the index.
         /// </summary>
         /// <param name="key">Object key.</param>
-        /// <param name="length">The total length of the object.</param>
-        public abstract void AddObject(string key, long length);
+        /// <param name="originalLength">The total length of the object.</param>
+        /// <param name="compressedLength">The compressed length of the object.</param>
+        /// <param name="chunkCount">The number of chunks in the object.</param>
+        public abstract void AddObject(string key, long originalLength, long compressedLength, long chunkCount);
          
         /// <summary>
         /// Add an object map to an existing object.

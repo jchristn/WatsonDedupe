@@ -27,9 +27,21 @@ namespace WatsonDedupe
         /// <summary>
         /// Length of the object.
         /// </summary>
-        [Column("length", false, DataTypes.Long, false)]
-        public long Length { get; set; }
-         
+        [Column("originallength", false, DataTypes.Long, false)]
+        public long OriginalLength { get; set; }
+
+        /// <summary>
+        /// Compressed length of the object.
+        /// </summary>
+        [Column("complength", false, DataTypes.Long, false)]
+        public long CompressedLength { get; set; }
+
+        /// <summary>
+        /// Number of chunks.
+        /// </summary>
+        [Column("chunkcount", false, DataTypes.Long, false)]
+        public long ChunkCount { get; set; }
+
         /// <summary>
         /// Creation timestamp in UTC time.
         /// </summary>
@@ -58,14 +70,18 @@ namespace WatsonDedupe
         /// Instantiate the object.
         /// </summary>
         /// <param name="key">Object key.</param>
-        /// <param name="length">Object length.</param>
-        public DedupeObject(string key, long length)
+        /// <param name="originalLength">Original length.</param>
+        /// <param name="compressedLength">Compressed length.</param>
+        /// <param name="chunkCount">Chunk count.</param>
+        public DedupeObject(string key, long originalLength, long compressedLength, long chunkCount)
         {
             if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
-            if (length < 1) throw new ArgumentException("Length must be greater than zero.");
+            if (originalLength < 1) throw new ArgumentException("Length must be greater than zero.");
 
             Key = key;
-            Length = length;
+            OriginalLength = originalLength;
+            CompressedLength = compressedLength;
+            ChunkCount = chunkCount;
             CreatedUtc = DateTime.Now.ToUniversalTime();
         }
 
@@ -76,7 +92,7 @@ namespace WatsonDedupe
         {
             get
             {
-                if (_Data == null && _DataStream != null && Length > 0)
+                if (_Data == null && _DataStream != null && OriginalLength > 0)
                 {
                     _Data = DedupeCommon.StreamToBytes(_DataStream);
                 }
@@ -110,11 +126,13 @@ namespace WatsonDedupe
         {
             string ret =
                 "--- DedupeObject ---" + Environment.NewLine +
-                "    Key        : " + Key + Environment.NewLine +
-                "    Length     : " + Length + Environment.NewLine +
-                "    CreatedUtc : " + CreatedUtc.ToString() + Environment.NewLine +
-                "    Chunks     : " + Chunks.Count + Environment.NewLine +
-                "    ObjectMap  : " + ObjectMap.Count;
+                "    Key               : " + Key + Environment.NewLine +
+                "    Original Length   : " + OriginalLength + Environment.NewLine +
+                "    Compressed Length : " + OriginalLength + Environment.NewLine +
+                "    Chunk Count       : " + ChunkCount+ Environment.NewLine +
+                "    CreatedUtc        : " + CreatedUtc.ToString() + Environment.NewLine +
+                // "    Chunks            : " + Chunks.Count + Environment.NewLine +
+                "    ObjectMap         : " + ObjectMap.Count;
 
             return ret;
         }

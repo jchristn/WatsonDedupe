@@ -4,30 +4,24 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
+
 using Watson.ORM.Core;
 using Watson.ORM.Sqlite;
+using WatsonDedupe;
+using WatsonDedupe.Database;
 
-namespace WatsonDedupe.Database
+namespace Test.External
 {
-    /// <summary>
-    /// Built-in Sqlite provider for WatsonDedupe.
-    /// </summary>
-    public class SqliteProvider : DbProvider
+    public class Database : DbProvider
     {
         #region Public-Members
 
         #endregion
 
         #region Private-Members
-
-        private string _IndexFile = null;
-        private DatabaseSettings _Settings = null;
+         
         private WatsonORM _ORM = null;
-
-        private readonly object _ConfigLock = new object();
-        private readonly object _ChunkLock = new object();
 
         #endregion
 
@@ -37,15 +31,12 @@ namespace WatsonDedupe.Database
         /// Instantiates the object
         /// </summary>
         /// <param name="indexFile">The index database file.</param>
-        public SqliteProvider(string indexFile)
-        { 
-            if (String.IsNullOrEmpty(indexFile)) throw new ArgumentNullException(nameof(indexFile));
-             
-            _IndexFile = indexFile;
-            _Settings = new DatabaseSettings(_IndexFile);
-            _ORM = new WatsonORM(_Settings);
-            _ORM.InitializeDatabase();
+        public Database(WatsonORM orm)
+        {
+            if (orm == null) throw new ArgumentNullException(nameof(orm));
 
+            _ORM = orm; 
+            _ORM.InitializeDatabase(); 
             _ORM.InitializeTable(typeof(DedupeConfig));
             _ORM.InitializeTable(typeof(DedupeObject));
             _ORM.InitializeTable(typeof(DedupeChunk));
@@ -84,16 +75,12 @@ namespace WatsonDedupe.Database
                 DbOperators.Equals,
                 "boundary_check_bytes");
 
-            lock (_ConfigLock)
-            {
-                DedupeConfig dc1 = _ORM.SelectFirst<DedupeConfig>(e1);
-                DedupeConfig dc2 = _ORM.SelectFirst<DedupeConfig>(e2);
-                DedupeConfig dc3 = _ORM.SelectFirst<DedupeConfig>(e3);
-                DedupeConfig dc4 = _ORM.SelectFirst<DedupeConfig>(e4);
+            DedupeConfig dc1 = _ORM.SelectFirst<DedupeConfig>(e1);
+            DedupeConfig dc2 = _ORM.SelectFirst<DedupeConfig>(e2);
+            DedupeConfig dc3 = _ORM.SelectFirst<DedupeConfig>(e3);
+            DedupeConfig dc4 = _ORM.SelectFirst<DedupeConfig>(e4);
 
-                if (dc1 != null && dc2 != null && dc3 != null && dc4 != null) return true;
-            }
-
+            if (dc1 != null && dc2 != null && dc3 != null && dc4 != null) return true;
             return false;
         }
 
@@ -115,13 +102,11 @@ namespace WatsonDedupe.Database
                 DbOperators.Equals,
                 key);
 
-            lock (_ConfigLock)
-            {
-                DedupeConfig config = _ORM.SelectFirst<DedupeConfig>(e);
-                if (config != null) _ORM.Delete<DedupeConfig>(config); 
-                config = new DedupeConfig(key, val);
-                config = _ORM.Insert<DedupeConfig>(config);
-            }
+            DedupeConfig config = _ORM.SelectFirst<DedupeConfig>(e);
+            if (config != null) _ORM.Delete<DedupeConfig>(config);
+
+            config = new DedupeConfig(key, val);
+            config = _ORM.Insert<DedupeConfig>(config);
         }
 
         /// <summary>
@@ -140,12 +125,9 @@ namespace WatsonDedupe.Database
                 DbOperators.Equals,
                 key);
 
-            lock (_ConfigLock)
-            {
-                DedupeConfig config = _ORM.SelectFirst<DedupeConfig>(e);
-                if (config == null) return null;
-                return config.Value;
-            }
+            DedupeConfig config = _ORM.SelectFirst<DedupeConfig>(e);
+            if (config == null) return null;
+            return config.Value;
         }
 
         /// <summary>
@@ -155,7 +137,7 @@ namespace WatsonDedupe.Database
         public override IndexStatistics GetStatistics()
         {
             IndexStatistics ret = new IndexStatistics();
-             
+
             DbExpression eObjects = new DbExpression(
                 _ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Id)),
                 DbOperators.GreaterThan,
@@ -175,7 +157,7 @@ namespace WatsonDedupe.Database
                 DbOperators.GreaterThan,
                 0);
 
-            decimal logicalBytes = _ORM.Sum<DedupeObject>(_ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Length)), eLogicalBytes);
+            decimal logicalBytes = _ORM.Sum<DedupeObject>(_ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.OriginalLength)), eLogicalBytes);
             ret.LogicalBytes = Convert.ToInt64(logicalBytes);
 
             DbExpression ePhysicalBytes = new DbExpression(
@@ -186,7 +168,7 @@ namespace WatsonDedupe.Database
             decimal physicalBytes = _ORM.Sum<DedupeChunk>(_ORM.GetColumnName<DedupeChunk>(nameof(DedupeChunk.Length)), ePhysicalBytes);
             ret.PhysicalBytes = Convert.ToInt64(physicalBytes);
 
-            return ret; 
+            return ret;
         }
 
         #endregion
@@ -218,7 +200,7 @@ namespace WatsonDedupe.Database
                     _ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Key)),
                     DbOperators.StartsWith,
                     prefix);
-            } 
+            }
 
             List<DedupeObject> objects = _ORM.SelectMany<DedupeObject>(null, maxResults, e);
 
@@ -265,8 +247,8 @@ namespace WatsonDedupe.Database
                 _ORM.GetColumnName<DedupeObject>(nameof(DedupeObject.Key)),
                 DbOperators.Equals,
                 key);
-             
-            return _ORM.Exists<DedupeObject>(e); 
+
+            return _ORM.Exists<DedupeObject>(e);
         }
          
         #endregion
@@ -297,18 +279,18 @@ namespace WatsonDedupe.Database
                 ret.Chunks = GetChunks(key);
                 ret.ObjectMap = GetObjectMap(key);
 
-                if (ret.ObjectMap != null && ret.ObjectMap.Count > 0) 
+                if (ret.ObjectMap != null && ret.ObjectMap.Count > 0)
                     ret.ObjectMap = ret.ObjectMap.OrderBy(o => o.ChunkAddress).ToList();
             }
 
             return ret;
         }
-         
+
         /// <summary>
         /// Retrieve metadata for a given chunk by its key.
         /// </summary>
         /// <param name="chunkKey">Chunk key.</param>
-        /// <returns>Chunk metadata.</returns> 
+        /// <returns>Chunk metadata.</returns>
         public override DedupeChunk GetChunkMetadata(string chunkKey)
         {
             if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
@@ -324,7 +306,7 @@ namespace WatsonDedupe.Database
 
             return ret;
         }
-         
+
         /// <summary>
         /// Retrieve chunk metadata for a given object.
         /// </summary>
@@ -349,7 +331,7 @@ namespace WatsonDedupe.Database
                 _ORM.GetColumnName<DedupeChunk>(nameof(DedupeChunk.Key)),
                 DbOperators.In,
                 chunkKeys);
-             
+
             ret = _ORM.SelectMany<DedupeChunk>(e);
             return ret;
         }
@@ -369,7 +351,7 @@ namespace WatsonDedupe.Database
 
             DedupeObject obj = GetObjectMetadata(key);
             if (obj == null) return null;
-            
+
             string objMapTable = _ORM.GetTableName(typeof(DedupeObjectMap));
             string objKeyCol = _ORM.GetColumnName<DedupeObjectMap>(nameof(DedupeObjectMap.ObjectKey));
             string chunkAddrCol = _ORM.GetColumnName<DedupeObjectMap>(nameof(DedupeObjectMap.ChunkAddress));
@@ -402,7 +384,7 @@ namespace WatsonDedupe.Database
             if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
 
             List<DedupeObjectMap> ret = new List<DedupeObjectMap>();
-             
+
             DbExpression e = new DbExpression(
                 _ORM.GetColumnName<DedupeObjectMap>(nameof(DedupeObjectMap.ObjectKey)),
                 DbOperators.Equals,
@@ -421,18 +403,20 @@ namespace WatsonDedupe.Database
         /// Add a new object to the index.
         /// </summary>
         /// <param name="key">Object key.</param>
-        /// <param name="length">The total length of the object.</param> 
-        public override void AddObject(string key, long length)
+        /// <param name="originalLength">The total length of the object.</param> 
+        /// <param name="compressedLength">The compressed length of the object.</param> 
+        /// <param name="chunkCount">The chunk count of the object.</param> 
+        public override void AddObject(string key, long originalLength, long compressedLength, long chunkCount)
         {
             if (String.IsNullOrEmpty(key)) throw new ArgumentNullException(nameof(key));
-            if (length < 1) throw new ArgumentException("Length must be greater than zero."); 
+            if (originalLength < 1) throw new ArgumentException("Length must be greater than zero."); 
 
             key = DedupeCommon.SanitizeString(key);
             if (Exists(key)) throw new ArgumentException("An object with key '" + key + "' already exists.");
 
-            DedupeObject obj = _ORM.Insert<DedupeObject>(new DedupeObject(key, length)); 
+            DedupeObject obj = _ORM.Insert<DedupeObject>(new DedupeObject(key, originalLength, compressedLength, chunkCount)); 
         }
-         
+
         /// <summary>
         /// Add an object map to an existing object.
         /// </summary>
@@ -464,27 +448,23 @@ namespace WatsonDedupe.Database
 
             chunkKey = DedupeCommon.SanitizeString(chunkKey);
 
-            lock (_ChunkLock)
+            DedupeChunk chunk = GetChunkMetadata(chunkKey);
+            if (chunk != null)
             {
-                DedupeChunk chunk = GetChunkMetadata(chunkKey);
-
-                if (chunk != null)
-                {
-                    chunk.RefCount = chunk.RefCount + 1;
-                    _ORM.Update<DedupeChunk>(chunk);
-                }
-                else
-                {
-                    chunk = new DedupeChunk(chunkKey, length, 1);
-                    _ORM.Insert<DedupeChunk>(chunk);
-                }
+                chunk.RefCount = chunk.RefCount + 1;
+                _ORM.Update<DedupeChunk>(chunk);
+            }
+            else
+            {
+                chunk = new DedupeChunk(chunkKey, length, 1);
+                _ORM.Insert<DedupeChunk>(chunk);
             }
         }
-         
+
         #endregion
 
         #region Delete-APIs
-         
+
         /// <summary>
         /// Delete an object and dereference the associated chunks.
         /// </summary>
@@ -518,11 +498,11 @@ namespace WatsonDedupe.Database
                 key);
 
             _ORM.DeleteMany<DedupeObjectMap>(e);
-            _ORM.Delete<DedupeObject>(obj);
+
             // chunks to GC
             return ret;
         }
-         
+
         /// <summary>
         /// Decrement the reference count of a chunk by its key.  If the reference count reaches zero, the chunk is deleted.
         /// </summary>
@@ -531,25 +511,22 @@ namespace WatsonDedupe.Database
         public override bool DecrementChunkRefcount(string chunkKey)
         {
             if (String.IsNullOrEmpty(chunkKey)) throw new ArgumentNullException(nameof(chunkKey));
-             
+
             chunkKey = DedupeCommon.SanitizeString(chunkKey);
 
-            lock (_ChunkLock)
-            {
-                DedupeChunk chunk = GetChunkMetadata(chunkKey);
-                if (chunk == null) return false;
+            DedupeChunk chunk = GetChunkMetadata(chunkKey);
+            if (chunk == null) return false;
 
-                chunk.RefCount = chunk.RefCount - 1;
-                if (chunk.RefCount < 1)
-                {
-                    _ORM.Delete<DedupeChunk>(chunk);
-                    return true;
-                }
-                else
-                {
-                    _ORM.Update<DedupeChunk>(chunk);
-                    return false;
-                }
+            chunk.RefCount = chunk.RefCount - 1;
+            if (chunk.RefCount < 1)
+            {
+                _ORM.Delete<DedupeChunk>(chunk);
+                return true;
+            }
+            else
+            {
+                _ORM.Update<DedupeChunk>(chunk);
+                return false;
             }
         }
 
@@ -558,7 +535,7 @@ namespace WatsonDedupe.Database
         #endregion
 
         #region Private-Methods
-         
+
         #endregion
     }
 }

@@ -127,14 +127,15 @@ namespace WatsonDedupe
             { 
                 ret +=
                     Environment.NewLine + Environment.NewLine +
-                    "Key                                    Length       Chunks   Maps" + Environment.NewLine +
-                    "-------------------------------------- ------------ -------- --------" + Environment.NewLine;
+                    "Key                                    Original     Compressed   Chunks   Maps" + Environment.NewLine +
+                    "-------------------------------------- ------------ ------------ -------- --------" + Environment.NewLine;
 
                 foreach (DedupeObject obj in Objects)
                 {
                     ret +=
                         obj.Key.PadRight(38) + " " +
-                        obj.Length.ToString().PadRight(12) + " " +
+                        obj.OriginalLength.ToString().PadRight(12) + " " +
+                        obj.CompressedLength.ToString().PadRight(12) + " " +
                         obj.Chunks.Count.ToString().PadRight(8) + " " +
                         obj.ObjectMap.Count.ToString().PadRight(8) + Environment.NewLine;
                 }

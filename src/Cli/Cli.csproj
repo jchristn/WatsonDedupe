@@ -2,12 +2,9 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFrameworks>netcoreapp3.1;net462;net48;net5.0;net6.0;net7.0</TargetFrameworks>
+    <AssemblyName>dedupe</AssemblyName>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="WatsonORM" Version="1.3.0.9" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DedupeLibrary\DedupeLibrary.csproj" />
@@ -18,6 +15,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="SampleFiles\small.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="test.bat">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.1;netcoreapp3.1;net462;net5.0;net6.0</TargetFrameworks>
+    <TargetFrameworks>netstandard2.1;netcoreapp3.1;net462;net48;net5.0;net6.0;net7.0</TargetFrameworks>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>WatsonDedupe</PackageId>
-    <Version>2.0.1.1</Version>
+    <Version>2.0.2</Version>
     <Authors>Joel Christner</Authors>
     <Product>WatsonDedupe</Product>
     <Description>Standalone C# library for deduplication of data.</Description>
@@ -14,7 +14,7 @@
     <PackageReleaseNotes>.NET 6 support</PackageReleaseNotes>
     <PackageTags>dedupe deduplication compression compress</PackageTags>
     <PackageLicenseUrl></PackageLicenseUrl>
-    <Copyright>(c)2020 Joel Christner</Copyright>
+    <Copyright>(c)2023 Joel Christner</Copyright>
     <PackageIconUrl>https://raw.githubusercontent.com/jchristn/WatsonDedupe/master/assets/icon.ico</PackageIconUrl>
     <RootNamespace>WatsonDedupe</RootNamespace>
     <PackageLicenseFile>LICENSE.md</PackageLicenseFile>

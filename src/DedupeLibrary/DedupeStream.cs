@@ -46,7 +46,7 @@ namespace WatsonDedupe
         /// <summary>
         /// Indicates the length of the content contained within the stream.
         /// </summary>
-        public override long Length => _Metadata.Length;
+        public override long Length => _Metadata.OriginalLength;
 
         /// <summary>
         /// Indicates the current position within the stream.
@@ -60,7 +60,7 @@ namespace WatsonDedupe
             set
             {
                 if (value < 0) throw new ArgumentOutOfRangeException("Position must be zero or greater.");
-                if (value > _Metadata.Length) throw new ArgumentOutOfRangeException("Position must be less than or equal to the content length.");
+                if (value > _Metadata.OriginalLength) throw new ArgumentOutOfRangeException("Position must be less than or equal to the content length.");
                 _Position = value;
             }
         }

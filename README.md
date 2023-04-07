@@ -8,7 +8,7 @@ Self-contained C# library for data deduplication targeted to .NET Core, .NET Sta
 
 ![alt tag](https://github.com/jchristn/WatsonDedupe/blob/master/assets/diagram_half.png)
 
-## New in v2.0.0
+## New in v2.0.x
 
 - Major internal refactor and breaking changes
 - Consolidated settings, callbacks, and statistics into new objects
@@ -16,6 +16,7 @@ Self-contained C# library for data deduplication targeted to .NET Core, .NET Sta
 - Refactored many APIs for simplification
 - Internal table structure extended
 - TryGet APIs
+- Additional properties on ```DedupeObject``` including compressed length and number of chunks
 
 ## Help and Support
 

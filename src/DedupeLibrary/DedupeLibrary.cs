@@ -230,7 +230,7 @@ namespace WatsonDedupe
 
                 chunks = ChunkStream(key, contentLength, stream, processChunk);
 
-                _Database.AddObject(key, contentLength);
+                _Database.AddObject(key, contentLength, chunks.Sum(item => item.Length), chunks.Count);
             }
             finally
             {

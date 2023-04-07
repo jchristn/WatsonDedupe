@@ -73,12 +73,12 @@ namespace Test.ReadStream
                         obj = _Dedupe.Get(key);
                         if (obj != null)
                         {
-                            if (obj.Length > 0)
+                            if (obj.OriginalLength > 0)
                             {
                                 using (FileStream fs = new FileStream(filename, FileMode.OpenOrCreate))
                                 {
                                     int bytesRead = 0;
-                                    long bytesRemaining = obj.Length;
+                                    long bytesRemaining = obj.OriginalLength;
                                     byte[] readBuffer = new byte[65536];
 
                                     while (bytesRemaining > 0)
